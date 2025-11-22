@@ -23,8 +23,8 @@ type UserHandler struct {
 	cfg *config.Config
 }
 
-func NewUserHandler(db *gorm.DB, cfg *config.Config) *UserHandler {
-	return &UserHandler{db: db, cfg: cfg}
+func NewUserHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *UserHandler {
+	return &UserHandler{db: db, cfg: cfg, rdb: rdb}
 }
 
 func (h *UserHandler) Register(c *gin.Context) {
