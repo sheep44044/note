@@ -19,6 +19,11 @@ type Config struct {
 	JWTSecretKey      string        `mapstructure:"JWT_SECRET_KEY"`
 	JWTIssuer         string        `mapstructure:"JWT_ISSUER"`
 	JWTExpirationTime time.Duration `mapstructure:"JWT_EXPIRATION_TIME"`
+
+	RedisHost     string `mapstructure:"REDIS_HOST"`
+	RedisPort     string `mapstructure:"REDIS_PORT"`
+	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
+	RedisDB       int    `mapstructure:"REDIS_DB"`
 }
 
 func Load() (*Config, error) {
@@ -45,6 +50,17 @@ func Load() (*Config, error) {
 		cfg.JWTExpirationTime = time.Hour * 24
 	}
 
+	// Redis默认值
+	if cfg.RedisHost == "" {
+		cfg.RedisHost = "localhost"
+	}
+	if cfg.RedisPort == "" {
+		cfg.RedisPort = "6379"
+	}
+	if cfg.RedisDB == 0 {
+		cfg.RedisDB = 0
+	}
+
 	return &cfg, nil
 }
 
@@ -58,6 +74,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("JWT_SECRET_KEY", "your_fallback_secret_key_change_in_production")
 	v.SetDefault("JWT_ISSUER", "note_app")
 	v.SetDefault("JWT_EXPIRATION_TIME", "24h")
+
+	v.SetDefault("REDIS_HOST", "localhost")
+	v.SetDefault("REDIS_PORT", "6379")
+	v.SetDefault("REDIS_PASSWORD", "")
+	v.SetDefault("REDIS_DB", "0")
 }
 
 func configureViper(v *viper.Viper) {

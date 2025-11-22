@@ -6,6 +6,7 @@ import (
 	"note/internal/handlers"
 	"note/internal/middleware"
 	"note/internal/models"
+	"note/internal/redis"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
@@ -16,6 +17,13 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		panic("failed to load config: " + err.Error())
+	}
+
+	// 初始化Redis
+	if err := redis.Init(cfg); err != nil {
+		slog.Warn("Redis connection failed, continuing without Redis", "error", err)
+	} else {
+		slog.Info("Redis connected successfully")
 	}
 
 	dsn := cfg.DBUser + ":" + cfg.DBPassword + "@tcp(" + cfg.DBHost + ":" + cfg.DBPort + ")/" +
