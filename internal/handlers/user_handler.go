@@ -94,7 +94,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 		cacheKey := "user:session:" + userIDStr
 		expiration := h.cfg.JWTExpirationTime // 使用与JWT相同的过期时间
 
-		if err := redis1.Set(cacheKey, string(userDataJSON), expiration); err != nil {
+		if err := redis1.SetWithRandomTTL(cacheKey, string(userDataJSON), expiration); err != nil {
 			slog.Warn("failed to cache user session", "error", err, "user_id", user.ID)
 			// 注意：缓存失败不应阻止登录成功，只记录警告
 		} else {

@@ -40,7 +40,7 @@ func (h *NoteTag) GetTags(c *gin.Context) {
 	h.db.Find(&tags)
 
 	tagsJSON, _ := json.Marshal(tags)
-	redis1.Set(cacheKey, string(tagsJSON), 10*time.Minute) // 10分钟TTL
+	redis1.SetWithRandomTTL(cacheKey, string(tagsJSON), 10*time.Minute) // 10分钟TTL
 
 	utils.Success(c, tags)
 }
@@ -70,7 +70,7 @@ func (h *NoteTag) GetTag(c *gin.Context) {
 	}
 
 	tagJSON, _ := json.Marshal(tag)
-	redis1.Set(cacheKey, string(tagJSON), 10*time.Minute) // 10分钟TTL
+	redis1.SetWithRandomTTL(cacheKey, string(tagJSON), 10*time.Minute) // 10分钟TTL
 
 	utils.Success(c, tag)
 }

@@ -3,6 +3,7 @@ package redis1
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"note/config"
@@ -35,6 +36,19 @@ func Init(cfg *config.Config) error {
 // 设置键值对，带过期时间
 func Set(key string, value interface{}, expiration time.Duration) error {
 	return Rdb.Set(ctx, key, value, expiration).Err()
+}
+
+func SetWithRandomTTL(key string, value interface{}, baseTTL time.Duration) error {
+	// 在基础TTL上增加±10%的随机浮动
+	jitter := time.Duration(rand.Int63n(int64(baseTTL/5)) - int64(baseTTL/10))
+	actualTTL := baseTTL + jitter
+
+	// 确保TTL不会变成负数
+	if actualTTL < 0 {
+		actualTTL = baseTTL
+	}
+
+	return Rdb.Set(ctx, key, value, actualTTL).Err()
 }
 
 // 获取键值
