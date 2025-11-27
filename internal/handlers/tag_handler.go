@@ -70,7 +70,7 @@ func (h *NoteTag) GetTag(c *gin.Context) {
 	}
 
 	tagJSON, _ := json.Marshal(tag)
-	redis1.SetWithRandomTTL(cacheKey, string(tagJSON), 10*time.Minute) // 10分钟TTL
+	redis1.SetWithRandomTTL(cacheKey, string(tagJSON), 10*time.Minute)
 
 	utils.Success(c, tag)
 }

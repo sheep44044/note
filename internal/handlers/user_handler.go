@@ -96,12 +96,10 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 		if err := redis1.SetWithRandomTTL(cacheKey, string(userDataJSON), expiration); err != nil {
 			slog.Warn("failed to cache user session", "error", err, "user_id", user.ID)
-			// 注意：缓存失败不应阻止登录成功，只记录警告
 		} else {
 			slog.Debug("user session cached successfully", "user_id", user.ID, "cache_key", cacheKey)
 		}
 	}
-	// ===== Redis缓存结束 =====
 
 	utils.Success(c, gin.H{"token": token, "user": gin.H{
 		"id":       user.ID,

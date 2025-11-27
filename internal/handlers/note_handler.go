@@ -45,7 +45,7 @@ func (h *NoteHandler) GetNotes(c *gin.Context) {
 
 	// 3. 将结果存入缓存
 	notesJSON, _ := json.Marshal(notes)
-	redis1.SetWithRandomTTL(cacheKey, string(notesJSON), 10*time.Minute) // 10分钟TTL
+	redis1.SetWithRandomTTL(cacheKey, string(notesJSON), 10*time.Minute)
 
 	utils.Success(c, notes)
 }
