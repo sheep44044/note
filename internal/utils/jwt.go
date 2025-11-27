@@ -73,7 +73,10 @@ func IsTokenBlacklisted(redisClient *redis.Client, tokenString string) (bool, er
 // 将token加入黑名单
 func AddTokenToBlacklist(redisClient *redis.Client, tokenString string, expiration time.Duration) error {
 	claims := jwt.MapClaims{}
-	_, _, _ = jwt.NewParser().ParseUnverified(tokenString, claims)
+	_, _, err := jwt.NewParser().ParseUnverified(tokenString, claims)
+	if err != nil {
+		return fmt.Errorf("failed to parse token: %w", err)
+	}
 
 	if jti, ok := claims["jti"].(float64); ok {
 		key := "blacklist:" + strconv.FormatInt(int64(jti), 10)
