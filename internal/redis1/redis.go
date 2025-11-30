@@ -70,3 +70,19 @@ func HSet(key string, values ...interface{}) error {
 func HGet(key, field string) (string, error) {
 	return Rdb.HGet(ctx, key, field).Result()
 }
+
+func ZAdd(key string, members ...redis.Z) (int64, error) {
+	return Rdb.ZAdd(ctx, key, members...).Result()
+}
+
+func ZRemRangeByRank(key string, start, stop int64) (int64, error) {
+	return Rdb.ZRemRangeByRank(ctx, key, start, stop).Result()
+}
+
+func ZRem(key string, members ...interface{}) (int64, error) {
+	return Rdb.ZRem(ctx, key, members...).Result()
+}
+
+func Expire(key string, expiration time.Duration) (bool, error) {
+	return Rdb.Expire(ctx, key, expiration).Result()
+}
