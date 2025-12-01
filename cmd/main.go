@@ -61,6 +61,8 @@ func main() {
 			notes.POST("", noteHandler.CreateNote)
 			notes.PUT("/:id", noteHandler.UpdateNote)
 			notes.DELETE("/:id", noteHandler.DeleteNote)
+
+			notes.GET("/recent", noteHandler.GetRecentNotes)
 		}
 
 		tagHandler := handlers.NewNoteTag(db)
