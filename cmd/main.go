@@ -51,7 +51,7 @@ func main() {
 	auth := r.Group("/")
 	auth.Use(middleware.JWTAuthMiddleware(cfg))
 	{
-		r.POST("/logout", userHandler.Logout)
+		auth.POST("/logout", userHandler.Logout)
 
 		noteHandler := handlers.NewNoteHandler(db)
 		notes := auth.Group("/notes")
