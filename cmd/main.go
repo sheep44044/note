@@ -54,6 +54,7 @@ func main() {
 	auth.Use(middleware.JWTAuthMiddleware(cfg))
 	{
 		auth.POST("/logout", userHandler.Logout)
+		auth.POST("/user/change-password", userHandler.ModifyPassword)
 
 		noteHandler := note.NewNoteHandler(db)
 		notes := auth.Group("/notes")
