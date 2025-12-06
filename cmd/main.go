@@ -53,17 +53,23 @@ func main() {
 	auth := r.Group("/")
 	auth.Use(middleware.JWTAuthMiddleware(cfg))
 	{
-		auth.POST("/logout", userHandler.Logout)
-		auth.POST("/user/change-password", userHandler.ModifyPassword)
+		users := auth.Group("/users")
+		{
+			users.POST("/logout", userHandler.Logout)
+			users.POST("/change-password", userHandler.ModifyPassword)
+
+			users.GET("/me", userHandler.PersonalPage)
+			users.PUT("/me", userHandler.UpdateMyProfile)
+		}
 
 		noteHandler := note.NewNoteHandler(db)
 		notes := auth.Group("/notes")
 		{
 			notes.GET("", noteHandler.GetNotes)
-			notes.GET("/:id", noteHandler.GetNote)
+			notes.GET("/:id", middleware.NoteOwnerMiddleware(db), noteHandler.GetNote)
 			notes.POST("", noteHandler.CreateNote)
-			notes.PUT("/:id", noteHandler.UpdateNote)
-			notes.DELETE("/:id", noteHandler.DeleteNote)
+			notes.PUT("/:id", middleware.NoteOwnerMiddleware(db), noteHandler.UpdateNote)
+			notes.DELETE("/:id", middleware.NoteOwnerMiddleware(db), noteHandler.DeleteNote)
 
 			notes.GET("/recent", noteHandler.GetRecentNotes)
 		}
