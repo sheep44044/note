@@ -66,12 +66,17 @@ func main() {
 		notes := auth.Group("/notes")
 		{
 			notes.GET("", noteHandler.GetNotes)
+			notes.GET("/search", noteHandler.SearchNotes)
 			notes.GET("/:id", middleware.NoteOwnerMiddleware(db), noteHandler.GetNote)
 			notes.POST("", noteHandler.CreateNote)
 			notes.PUT("/:id", middleware.NoteOwnerMiddleware(db), noteHandler.UpdateNote)
 			notes.DELETE("/:id", middleware.NoteOwnerMiddleware(db), noteHandler.DeleteNote)
 
 			notes.GET("/recent", noteHandler.GetRecentNotes)
+
+			notes.PATCH("/:id/pin", noteHandler.TogglePin)
+			notes.PATCH("/:id/favorite", noteHandler.ToggleFavorite)
+			notes.GET("/favorites", noteHandler.ListFavorites)
 		}
 
 		tagHandler := tag.NewNoteTag(db)
