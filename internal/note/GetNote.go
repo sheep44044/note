@@ -3,6 +3,7 @@ package note
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"note/internal/cache"
@@ -23,7 +24,7 @@ func (h *NoteHandler) GetNotes(c *gin.Context) {
 	}
 
 	// 1. 先尝试从缓存获取
-	cacheKey := "notes:all"
+	cacheKey := fmt.Sprintf("notes:user:%d", userID)
 	cachedNotes, err := cache.Get(cacheKey)
 	if err == nil {
 		var notes []models.Note

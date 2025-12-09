@@ -2,6 +2,7 @@ package note
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"note/internal/cache"
@@ -88,7 +89,7 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	}
 
 	cacheKeyNote := "note:" + id
-	cacheKeyAllNotes := "notes:all"
+	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d", userID)
 
 	cache.Del(cacheKeyNote)
 	cache.Del(cacheKeyAllNotes)
