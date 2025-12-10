@@ -69,6 +69,7 @@ func (h *NoteHandler) GetRecentNotes(c *gin.Context) {
 			})
 		}
 	}
+	utils.Success(c, result)
 }
 
 // recordNoteView 记录用户访问某篇笔记（内部调用，小写开头）
