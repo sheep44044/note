@@ -17,15 +17,9 @@ import (
 
 func (h *NoteHandler) TogglePin(c *gin.Context) {
 	id := c.Param("id")
-	userid, exists := c.Get("user_id")
-	if !exists {
-		utils.Error(c, http.StatusUnauthorized, "未登录")
-		return
-	}
-
-	userID, ok := userid.(uint)
-	if !ok {
-		utils.Error(c, http.StatusInternalServerError, "用户ID类型错误")
+	userID, err := utils.GetUserID(c)
+	if err != nil {
+		utils.Error(c, http.StatusUnauthorized, err.Error())
 		return
 	}
 
@@ -59,15 +53,9 @@ func (h *NoteHandler) TogglePin(c *gin.Context) {
 
 func (h *NoteHandler) FavoriteNote(c *gin.Context) {
 	noteID := c.Param("id")
-	userid, exists := c.Get("user_id")
-	if !exists {
-		utils.Error(c, http.StatusUnauthorized, "未登录")
-		return
-	}
-
-	userID, ok := userid.(uint)
-	if !ok {
-		utils.Error(c, http.StatusInternalServerError, "用户ID类型错误")
+	userID, err := utils.GetUserID(c)
+	if err != nil {
+		utils.Error(c, http.StatusUnauthorized, err.Error())
 		return
 	}
 

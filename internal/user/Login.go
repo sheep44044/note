@@ -2,13 +2,13 @@ package user
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"note/internal/cache"
 	"note/internal/models"
 	"note/internal/utils"
 	"note/internal/validators"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -32,8 +32,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	userIDStr := strconv.FormatUint(uint64(user.ID), 10)
-	token, err := utils.GenerateToken(h.cfg, userIDStr, user.Username)
+	token, err := utils.GenerateToken(h.cfg, user.ID, user.Username)
 	if err != nil {
 		utils.Error(c, http.StatusInternalServerError, "failed to generate token")
 		return
@@ -54,7 +53,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 	} else {
 		// 使用redis包中定义的Set函数缓存数据
 		// 缓存键格式: user:session:{userID}
-		cacheKey := "user:session:" + userIDStr
+		cacheKey := fmt.Sprintf("user:session:%d", user.ID)
 		expiration := h.cfg.JWTExpirationTime // 使用与JWT相同的过期时间
 
 		if err := cache.SetWithRandomTTL(cacheKey, string(userDataJSON), expiration); err != nil {

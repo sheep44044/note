@@ -14,7 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func GenerateToken(cfg *config.Config, userID string, username string) (string, error) {
+func GenerateToken(cfg *config.Config, userID uint, username string) (string, error) {
 	// 生成唯一ID用于黑名单
 	jti := time.Now().UnixNano() + rand.Int63()
 

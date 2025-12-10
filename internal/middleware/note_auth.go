@@ -14,16 +14,9 @@ import (
 func NoteOwnerMiddleware(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 1. 获取当前用户 ID（从 JWT 中间件存的 context）
-		userID, exists := c.Get("user_id")
-		if !exists {
-			utils.Error(c, http.StatusUnauthorized, "请先登录")
-			c.Abort()
-			return
-		}
-		currentUserID, ok := userID.(float64)
-		if !ok {
-			utils.Error(c, http.StatusInternalServerError, "用户ID格式错误")
-			c.Abort()
+		userID, err := utils.GetUserID(c)
+		if err != nil {
+			utils.Error(c, http.StatusUnauthorized, err.Error())
 			return
 		}
 
@@ -38,7 +31,7 @@ func NoteOwnerMiddleware(db *gorm.DB) gin.HandlerFunc {
 
 		// 3. 用传进来的 db 查询
 		var note models.Note
-		if err := db.Where("id = ? AND user_id = ?", noteID, uint(currentUserID)).First(&note).Error; err != nil {
+		if err := db.Where("id = ? AND user_id = ?", noteID, uint(userID)).First(&note).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				utils.Error(c, http.StatusForbidden, "你没有权限操作这篇笔记")
 			} else {

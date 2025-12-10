@@ -14,22 +14,16 @@ import (
 )
 
 func (h *UserHandler) PersonalPage(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		utils.Error(c, http.StatusUnauthorized, "user not logged in")
-		return
-	}
-
-	id, ok := userID.(float64)
-	if !ok {
-		utils.Error(c, http.StatusInternalServerError, "invalid user_id type")
+	userID, err := utils.GetUserID(c)
+	if err != nil {
+		utils.Error(c, http.StatusUnauthorized, err.Error())
 		return
 	}
 
 	// 查用户基本信息
 	var user models.User
 	if err := h.db.Select("id, username, avatar, bio, created_at, updated_at").
-		Where("id = ?", uint(id)).First(&user).Error; err != nil {
+		Where("id = ?", uint(userID)).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusNotFound, "user not found")
 		} else {
@@ -41,10 +35,13 @@ func (h *UserHandler) PersonalPage(c *gin.Context) {
 
 	// 查该用户的所有笔记（只查公开的 or 自己的）
 	var notes []models.Note
-	if err := h.db.Select("id, title, is_private, created_at, updated_at").
+
+	err = h.db.Select("id, title, is_private, created_at, updated_at").
 		Where("user_id = ? AND is_private = ?", user.ID, false).
 		Or("user_id = ? AND is_private = ? AND user_id = ?", user.ID, true, user.ID).
-		Find(&notes).Error; err != nil {
+		Find(&notes).Error
+
+	if err != nil {
 		slog.Error("DB query notes error")
 		utils.Error(c, http.StatusInternalServerError, "failed to load notes")
 		return
@@ -76,14 +73,10 @@ func (h *UserHandler) PersonalPage(c *gin.Context) {
 }
 
 func (h *UserHandler) UpdateMyProfile(c *gin.Context) {
-	userId, exists := c.Get("user_id")
-	if !exists {
-		utils.Error(c, http.StatusUnauthorized, "user not logged in")
-	}
-
-	id, ok := userId.(float64)
-	if !ok {
-		utils.Error(c, http.StatusInternalServerError, "invalid user_id type")
+	userID, err := utils.GetUserID(c)
+	if err != nil {
+		utils.Error(c, http.StatusUnauthorized, err.Error())
+		return
 	}
 
 	var req validators.UpdateProfileRequest
@@ -115,7 +108,7 @@ func (h *UserHandler) UpdateMyProfile(c *gin.Context) {
 
 	// 4. 执行更新（只更新当前用户的记录）
 	result := h.db.Model(&models.User{}).
-		Where("id = ?", uint(id)).
+		Where("id = ?", uint(userID)).
 		Updates(updates)
 
 	if result.Error != nil {
@@ -132,7 +125,7 @@ func (h *UserHandler) UpdateMyProfile(c *gin.Context) {
 	// 5. 返回更新后的完整信息（可选）
 	var updatedUser models.User
 	h.db.Select("id, username, avatar, bio, created_at, updated_at").
-		First(&updatedUser, uint(id))
+		First(&updatedUser, uint(userID))
 
 	response := map[string]interface{}{
 		"id":         updatedUser.ID,
