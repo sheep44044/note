@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// 迁移所有模型
-	err = db.AutoMigrate(&models.User{}, &models.Note{}, &models.Tag{}, &models.Favorite{}, &models.Reaction{})
+	err = db.AutoMigrate(&models.User{}, &models.Note{}, &models.Tag{}, &models.Favorite{}, &models.Reaction{}, &models.UserFollow{})
 	if err != nil {
 		panic("failed to migrate database: " + err.Error())
 	}
@@ -60,6 +60,9 @@ func main() {
 
 			users.GET("/me", userHandler.PersonalPage)
 			users.PUT("/me", userHandler.UpdateMyProfile)
+
+			users.POST("/:id/follow", userHandler.FollowUser)
+			users.DELETE("/:id/follow", userHandler.UnfollowUser)
 		}
 
 		noteHandler := note.NewNoteHandler(db)
@@ -80,6 +83,7 @@ func main() {
 			notes.GET("/favorites", noteHandler.ListMyFavorites)
 
 			notes.GET("/community", noteHandler.ListPublicNotes)
+			notes.GET("/follow", noteHandler.GetFollowingFeed)
 		}
 
 		tagHandler := tag.NewNoteTag(db)
