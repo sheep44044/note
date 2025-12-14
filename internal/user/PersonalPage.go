@@ -23,7 +23,7 @@ func (h *UserHandler) PersonalPage(c *gin.Context) {
 	// 查用户基本信息
 	var user models.User
 	if err := h.db.Select("id, username, avatar, bio, created_at, updated_at").
-		Where("id = ?", uint(userID)).First(&user).Error; err != nil {
+		Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusNotFound, "user not found")
 		} else {
@@ -108,7 +108,7 @@ func (h *UserHandler) UpdateMyProfile(c *gin.Context) {
 
 	// 4. 执行更新（只更新当前用户的记录）
 	result := h.db.Model(&models.User{}).
-		Where("id = ?", uint(userID)).
+		Where("id = ?", userID).
 		Updates(updates)
 
 	if result.Error != nil {
@@ -125,7 +125,7 @@ func (h *UserHandler) UpdateMyProfile(c *gin.Context) {
 	// 5. 返回更新后的完整信息（可选）
 	var updatedUser models.User
 	h.db.Select("id, username, avatar, bio, created_at, updated_at").
-		First(&updatedUser, uint(userID))
+		First(&updatedUser, userID)
 
 	response := map[string]interface{}{
 		"id":         updatedUser.ID,
