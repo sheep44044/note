@@ -2,17 +2,17 @@ package user
 
 import (
 	"note/config"
+	"note/internal/cache"
 
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
 type UserHandler struct {
-	db  *gorm.DB
-	rdb *redis.Client
-	cfg *config.Config
+	db    *gorm.DB
+	cache *cache.RedisCache
+	cfg   *config.Config
 }
 
-func NewUserHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *UserHandler {
-	return &UserHandler{db: db, cfg: cfg, rdb: rdb}
+func NewUserHandler(db *gorm.DB, cfg *config.Config, cache *cache.RedisCache) *UserHandler {
+	return &UserHandler{db: db, cfg: cfg, cache: cache}
 }

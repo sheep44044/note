@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"note/internal/cache"
 	"note/internal/models"
 	"note/internal/utils"
 	"strconv"
@@ -34,8 +33,8 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	cacheKeyNote := "note:" + c.Param("id")
 	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d", userID)
 
-	cache.Del(cacheKeyNote)
-	cache.Del(cacheKeyAllNotes)
+	h.cache.Del(c, cacheKeyNote)
+	h.cache.Del(c, cacheKeyAllNotes)
 
 	slog.Info("Cache cleared for deleted note", "note_id", id)
 	utils.Success(c, gin.H{"message": "deleted"})

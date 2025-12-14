@@ -22,7 +22,8 @@ func main() {
 	}
 
 	// 初始化Redis
-	if err := cache.Init(cfg); err != nil {
+	rdb, err := cache.New(cfg)
+	if err != nil {
 		slog.Warn("Redis connection failed, continuing without Redis", "error", err)
 	} else {
 		slog.Info("Redis connected successfully")
@@ -45,7 +46,7 @@ func main() {
 	r.Use(middleware.LoggerMiddleware())
 
 	// 公开路由：用户注册/登录
-	userHandler := user.NewUserHandler(db, cfg, cache.Rdb)
+	userHandler := user.NewUserHandler(db, cfg, rdb)
 	r.POST("/register", userHandler.Register)
 	r.POST("/login", userHandler.Login)
 
@@ -65,7 +66,7 @@ func main() {
 			users.DELETE("/:id/follow", userHandler.UnfollowUser)
 		}
 
-		noteHandler := note.NewNoteHandler(db)
+		noteHandler := note.NewNoteHandler(db, rdb)
 		notes := auth.Group("/notes")
 		{
 			notes.GET("", noteHandler.GetNotes)

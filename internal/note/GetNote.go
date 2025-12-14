@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"note/internal/cache"
 	"note/internal/models"
 	"note/internal/utils"
 	"strconv"
@@ -25,7 +24,7 @@ func (h *NoteHandler) GetNotes(c *gin.Context) {
 
 	// 1. 先尝试从缓存获取
 	cacheKey := fmt.Sprintf("notes:user:%d", userID)
-	cachedNotes, err := cache.Get(cacheKey)
+	cachedNotes, err := h.cache.Get(c, cacheKey)
 	if err == nil {
 		var notes []models.Note
 		if err := json.Unmarshal([]byte(cachedNotes), &notes); err == nil {
@@ -49,7 +48,7 @@ func (h *NoteHandler) GetNotes(c *gin.Context) {
 
 	// 3. 将结果存入缓存
 	notesJSON, _ := json.Marshal(notes)
-	cache.SetWithRandomTTL(cacheKey, string(notesJSON), 10*time.Minute)
+	h.cache.SetWithRandomTTL(c, cacheKey, string(notesJSON), 10*time.Minute)
 
 	utils.Success(c, notes)
 }
@@ -64,13 +63,13 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 	id := c.Param("id")
 	cacheKey := "note:" + id
 
-	cachedNote, err := cache.Get(cacheKey)
+	cachedNote, err := h.cache.Get(c, cacheKey)
 	if err == nil {
 		var note models.Note
 		if err := json.Unmarshal([]byte(cachedNote), &note); err == nil {
 			slog.Debug("Notes retrieved from cache", "key", cacheKey)
 
-			h.recordNoteView(strconv.Itoa(int(userID)), id)
+			h.recordNoteView(c, strconv.Itoa(int(userID)), id)
 
 			utils.Success(c, note)
 			return
@@ -88,9 +87,9 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 	}
 
 	noteJSON, _ := json.Marshal(note)
-	cache.SetWithRandomTTL(cacheKey, string(noteJSON), 10*time.Minute)
+	h.cache.SetWithRandomTTL(c, cacheKey, string(noteJSON), 10*time.Minute)
 
-	h.recordNoteView(strconv.Itoa(int(userID)), id)
+	h.recordNoteView(c, strconv.Itoa(int(userID)), id)
 
 	utils.Success(c, note)
 }

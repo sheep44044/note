@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"note/internal/cache"
 	"note/internal/models"
 	"note/internal/utils"
 	"strconv"
@@ -43,8 +42,8 @@ func (h *NoteHandler) TogglePin(c *gin.Context) {
 	}
 
 	// 清理缓存（你已有的逻辑）
-	cache.Del("note:" + id)
-	cache.Del(fmt.Sprintf("notes:user:%d", userID))
+	h.cache.Del(c, "note:"+id)
+	h.cache.Del(c, fmt.Sprintf("notes:user:%d", userID))
 
 	utils.Success(c, gin.H{
 		"is_pinned": note.IsPinned,
@@ -81,8 +80,8 @@ func (h *NoteHandler) FavoriteNote(c *gin.Context) {
 	h.db.Model(&note).Update("favorite_count", gorm.Expr("favorite_count + 1"))
 
 	// 清缓存
-	cache.Del("note:" + noteID)
-	cache.Del(fmt.Sprintf("notes:favorites:%d", userID))
+	h.cache.Del(c, "note:"+noteID)
+	h.cache.Del(c, fmt.Sprintf("notes:favorites:%d", userID))
 
 	utils.Success(c, gin.H{"favorite_count": note.FavoriteCount + 1})
 }
@@ -106,8 +105,8 @@ func (h *NoteHandler) UnfavoriteNote(c *gin.Context) {
 	// 更新计数（-1）
 	h.db.Model(&models.Note{}).Where("id = ?", noteID).Update("favorite_count", gorm.Expr("GREATEST(favorite_count - 1, 0)"))
 
-	cache.Del("note:" + noteID)
-	cache.Del(fmt.Sprintf("notes:favorites:%d", userID))
+	h.cache.Del(c, "note:"+noteID)
+	h.cache.Del(c, fmt.Sprintf("notes:favorites:%d", userID))
 
 	utils.Success(c, gin.H{"message": "已取消收藏"})
 }

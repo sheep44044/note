@@ -3,7 +3,6 @@ package note
 import (
 	"fmt"
 	"net/http"
-	"note/internal/cache"
 	"note/internal/models"
 	"note/internal/utils"
 	"note/internal/validators"
@@ -40,7 +39,7 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 	h.db.Create(&note)
 
 	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d", userID)
-	cache.Del(cacheKeyAllNotes)
+	h.cache.Del(c, cacheKeyAllNotes)
 
 	utils.Success(c, note)
 }

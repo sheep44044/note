@@ -1,9 +1,9 @@
 package note
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"note/internal/cache"
 	"note/internal/models"
 	"note/internal/utils"
 	"strconv"
@@ -23,7 +23,7 @@ func (h *NoteHandler) GetRecentNotes(c *gin.Context) {
 
 	key := fmt.Sprintf("user:history:%d", userID)
 
-	noteIDs, err := cache.ZRevRange(key, 0, 4)
+	noteIDs, err := h.cache.ZRevRange(c, key, 0, 4)
 	if err != nil {
 		// Redis 出错或 key 不存在都返回空列表（更友好）
 		noteIDs = []string{}
@@ -73,19 +73,19 @@ func (h *NoteHandler) GetRecentNotes(c *gin.Context) {
 }
 
 // recordNoteView 记录用户访问某篇笔记（内部调用，小写开头）
-func (h *NoteHandler) recordNoteView(userID, noteID string) {
+func (h *NoteHandler) recordNoteView(ctx context.Context, userID, noteID string) {
 	key := "user:history:" + userID
 	now := float64(time.Now().Unix())
 
 	// 1. 先移除旧记录（实现去重）
-	cache.ZRem(key, noteID)
+	h.cache.ZRem(ctx, key, noteID)
 
 	// 2. 添加新记录（以当前时间戳为分数）
-	cache.ZAdd(key, redis.Z{Score: now, Member: noteID})
+	h.cache.ZAdd(ctx, key, redis.Z{Score: now, Member: noteID})
 
 	// 3. 只保留最近5条（-6 表示从第0名到倒数第6名，共删掉超出的部分）
-	cache.ZRemRangeByRank(key, 0, -6)
+	h.cache.ZRemRangeByRank(ctx, key, 0, -6)
 
 	// 4. 设置30天自动过期（可选但推荐）
-	cache.Expire(key, 30*24*time.Hour)
+	h.cache.Expire(ctx, key, 30*24*time.Hour)
 }
