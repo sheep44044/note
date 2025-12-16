@@ -11,6 +11,14 @@ type Reaction struct {
 	CreatedAt time.Time
 }
 
+type ReactionMsg struct {
+	ID     uint   `gorm:"primaryKey"`
+	UserID uint   `gorm:"index"`
+	NoteID uint   `gorm:"index"`
+	Emoji  string `gorm:"size:10"`
+	Action string `json:"action"` // "add" or "remove"
+}
+
 // 防止同一用户对同一笔记重复点同一个 emoji
 
 func (Reaction) TableName() string {
