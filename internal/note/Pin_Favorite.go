@@ -1,6 +1,7 @@
 package note
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -65,19 +66,9 @@ func (h *NoteHandler) FavoriteNote(c *gin.Context) {
 		return
 	}
 
-	// 创建收藏记录
-	fav := models.Favorite{UserID: userID, NoteID: note.ID}
-	if err := h.db.Create(&fav).Error; err != nil {
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			utils.Success(c, gin.H{"message": "已收藏"})
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, "操作失败")
-		return
-	}
-
-	// 更新计数（+1）
-	h.db.Model(&note).Update("favorite_count", gorm.Expr("favorite_count + 1"))
+	msg := models.FavoriteMsg{UserID: userID, NoteID: note.ID, Action: "add"}
+	body, _ := json.Marshal(msg)
+	h.rabbit.Publish("favorite_queue", body)
 
 	// 清缓存
 	h.cache.Del(c, "note:"+noteID)
@@ -87,25 +78,20 @@ func (h *NoteHandler) FavoriteNote(c *gin.Context) {
 }
 
 func (h *NoteHandler) UnfavoriteNote(c *gin.Context) {
-	noteID := c.Param("id")
-	userid, exists := c.Get("user_id")
-	if !exists {
-		utils.Error(c, http.StatusUnauthorized, "未登录")
+	noteIDstr := c.Param("id")
+	noteID, _ := strconv.ParseUint(noteIDstr, 0, 64)
+
+	userID, err := utils.GetUserID(c)
+	if err != nil {
+		utils.Error(c, http.StatusUnauthorized, err.Error())
 		return
 	}
 
-	userID, ok := userid.(uint)
-	if !ok {
-		utils.Error(c, http.StatusInternalServerError, "用户ID类型错误")
-		return
-	}
+	msg := models.FavoriteMsg{UserID: userID, NoteID: uint(noteID), Action: "remove"}
+	body, _ := json.Marshal(msg)
+	h.rabbit.Publish("favorite_queue", body)
 
-	h.db.Where("user_id = ? AND note_id = ?", userID, noteID).Delete(&models.Favorite{})
-
-	// 更新计数（-1）
-	h.db.Model(&models.Note{}).Where("id = ?", noteID).Update("favorite_count", gorm.Expr("GREATEST(favorite_count - 1, 0)"))
-
-	h.cache.Del(c, "note:"+noteID)
+	h.cache.Del(c, "note:"+noteIDstr)
 	h.cache.Del(c, fmt.Sprintf("notes:favorites:%d", userID))
 
 	utils.Success(c, gin.H{"message": "已取消收藏"})

@@ -1,6 +1,7 @@
 package note
 
 import (
+	"encoding/json"
 	"net/http"
 	"note/internal/models"
 	"note/internal/utils"
@@ -39,12 +40,9 @@ func (h *NoteHandler) ReactToNote(c *gin.Context) {
 	// 删除用户对该笔记的旧 reaction（同一时间只能点一个）
 	h.db.Where("user_id = ? AND note_id = ?", userID, noteID).Delete(&models.Reaction{})
 
-	reaction := models.Reaction{
-		UserID: userID,
-		NoteID: uint(noteIDUint64),
-		Emoji:  input.Emoji,
-	}
-	h.db.Create(&reaction)
+	msg := models.ReactionMsg{UserID: userID, NoteID: uint(noteIDUint64), Emoji: input.Emoji, Action: "add"}
+	body, _ := json.Marshal(msg)
+	h.rabbit.Publish("react_queue", body)
 
 	utils.Success(c, gin.H{"message": "反应成功"})
 }
