@@ -6,6 +6,7 @@ import (
 	"note/internal/cache"
 	"note/internal/middleware"
 	"note/internal/models"
+	"note/internal/mq"
 	"note/internal/note"
 	"note/internal/tag"
 	"note/internal/user"
@@ -27,6 +28,15 @@ func main() {
 		slog.Warn("Redis connection failed, continuing without Redis", "error", err)
 	} else {
 		slog.Info("Redis connected successfully")
+	}
+
+	rabbit, err := mq.New(cfg)
+	if err != nil {
+		// 如果 MQ 是必须的，这里应该 panic；如果是可选的，可以 log warn
+		slog.Warn("RabbitMQ connection failed", "error", err)
+	} else {
+		slog.Info("RabbitMQ connected successfully")
+		defer rabbit.Close() // 程序退出时关闭
 	}
 
 	dsn := cfg.DBUser + ":" + cfg.DBPassword + "@tcp(" + cfg.DBHost + ":" + cfg.DBPort + ")/" +

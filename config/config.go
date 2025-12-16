@@ -24,6 +24,11 @@ type Config struct {
 	RedisPort     string `mapstructure:"REDIS_PORT"`
 	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
 	RedisDB       int    `mapstructure:"REDIS_DB"`
+
+	MQHost     string `mapstructure:"RABBITMQ_HOST"`
+	MQPort     string `mapstructure:"RABBITMQ_PORT"`
+	MQUser     string `mapstructure:"RABBITMQ_USER"`
+	MQPassword string `mapstructure:"RABBITMQ_PASSWORD"`
 }
 
 func Load() (*Config, error) {
@@ -70,6 +75,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("DB_HOST", "localhost")
 	v.SetDefault("DB_PORT", "3306")
 	v.SetDefault("DB_NAME", "notes_db")
+
 	v.SetDefault("SERVER_PORT", "8080")
 	v.SetDefault("JWT_SECRET_KEY", "your_fallback_secret_key_change_in_production")
 	v.SetDefault("JWT_ISSUER", "note_app")
@@ -79,6 +85,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("REDIS_PORT", "6379")
 	v.SetDefault("REDIS_PASSWORD", "")
 	v.SetDefault("REDIS_DB", "0")
+
+	v.SetDefault("RABBITMQ_HOST", "localhost")
+	v.SetDefault("RABBITMQ_PORT", "5672")
+	v.SetDefault("RABBITMQ_USER", "admin")
+	v.SetDefault("RABBITMQ_PASSWORD", "123456")
 }
 
 func configureViper(v *viper.Viper) {
