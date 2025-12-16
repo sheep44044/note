@@ -8,3 +8,9 @@ type Favorite struct {
 
 	CreatedAt time.Time
 }
+
+type FavoriteMsg struct {
+	UserID uint   `json:"user_id"`
+	NoteID uint   `json:"note_id"`
+	Action string `json:"action"` // "add" or "remove"
+}
