@@ -19,3 +19,9 @@ type Note struct {
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 	Tags      []Tag     `gorm:"many2many:note_tags;"`
 }
+
+type FeedMsg struct {
+	AuthorID uint  `json:"author_id"`
+	NoteID   uint  `json:"note_id"`
+	PostTime int64 `json:"post_time"`
+}

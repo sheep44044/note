@@ -83,3 +83,11 @@ func (c *RedisCache) ZRevRange(ctx context.Context, key string, start, stop int6
 func (c *RedisCache) Expire(ctx context.Context, key string, expiration time.Duration) (bool, error) {
 	return c.client.Expire(ctx, key, expiration).Result()
 }
+
+func (c *RedisCache) Pipeline() redis.Pipeliner {
+	return c.client.Pipeline()
+}
+
+func (c *RedisCache) LRange(ctx context.Context, key string, start, stop int64) ([]string, error) {
+	return c.client.LRange(ctx, key, start, stop).Result()
+}
