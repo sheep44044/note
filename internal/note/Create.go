@@ -1,6 +1,7 @@
 package note
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"note/internal/models"
@@ -41,5 +42,19 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d", userID)
 	h.cache.Del(c, cacheKeyAllNotes)
 
+	if !note.IsPrivate {
+		go func() {
+			msg := models.FeedMsg{
+				AuthorID: note.UserID,
+				NoteID:   note.ID,
+				PostTime: note.CreatedAt.Unix(),
+			}
+			body, _ := json.Marshal(msg)
+			if h.rabbit != nil {
+				// 只需要发这一条消息，剩下的交给消费者去扩散
+				h.rabbit.Publish("feed_queue", body)
+			}
+		}()
+	}
 	utils.Success(c, note)
 }
