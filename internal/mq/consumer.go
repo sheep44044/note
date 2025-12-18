@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"note/internal/ai"
 	"note/internal/cache"
 	"note/internal/models"
 
@@ -17,14 +18,16 @@ type Consumer struct {
 	db     *gorm.DB
 	cache  *cache.RedisCache
 	rabbit *RabbitMQ
+	ai     *ai.AIService
 }
 
 // NewConsumer 初始化消费者管理器
-func NewConsumer(db *gorm.DB, cache *cache.RedisCache, rabbit *RabbitMQ) *Consumer {
+func NewConsumer(db *gorm.DB, cache *cache.RedisCache, rabbit *RabbitMQ, ai *ai.AIService) *Consumer {
 	return &Consumer{
 		db:     db,
 		cache:  cache,
 		rabbit: rabbit,
+		ai:     ai,
 	}
 }
 
@@ -35,6 +38,7 @@ func (c *Consumer) Start() {
 	go c.consumeReaction()
 	go c.ConsumeHistory()
 	go c.consumeFeedPush()
+	go c.consumeAITasks()
 	// 这里可以启动其他消费者...
 }
 
@@ -185,6 +189,60 @@ func (c *Consumer) consumeFeedPush() {
 			// 这里可以选择 Nack 重试，或者记录日志人工处理
 		} else {
 			slog.Info("Feed pushed to fans", "author_id", msg.AuthorID, "fan_count", len(fanIDs))
+		}
+	}
+}
+
+func (c *Consumer) consumeAITasks() {
+	msgs, err := c.rabbit.Consume("ai_queue")
+	if err != nil {
+		slog.Error("Failed to start AI consumer", "error", err)
+		return
+	}
+
+	slog.Info("Waiting for AI tasks...")
+
+	for d := range msgs {
+		var msg models.AITaskMsg
+		if err := json.Unmarshal(d.Body, &msg); err != nil {
+			continue
+		}
+
+		slog.Info("Processing AI task", "note_id", msg.NoteID, "task", msg.Task)
+
+		// 1. 查数据库获取笔记内容
+		var note models.Note
+		if err := c.db.First(&note, msg.NoteID).Error; err != nil {
+			slog.Error("Note not found", "id", msg.NoteID)
+			continue
+		}
+
+		// 2. 根据任务类型调用 AI
+		var updateMap = make(map[string]interface{})
+
+		if msg.Task == "generate_title" {
+			// 这里调用你在 Service 层写好的方法
+			newTitle, err := c.ai.GenerateTitle(note.Content)
+			if err == nil && newTitle != "" {
+				updateMap["title"] = newTitle
+			}
+		} else if msg.Task == "generate_summary" {
+			summary, err := c.ai.GenerateSummary(note.Content)
+			if err == nil && summary != "" {
+				updateMap["summary"] = summary
+			}
+		}
+
+		// 3. 更新数据库
+		if len(updateMap) > 0 {
+			if err := c.db.Model(&note).Updates(updateMap).Error; err != nil {
+				slog.Error("Failed to update note with AI result", "err", err)
+			} else {
+				slog.Info("AI Update success", "note_id", note.ID)
+
+				cacheKey := fmt.Sprintf("note:%d", note.ID)
+				c.cache.Del(context.Background(), cacheKey)
+			}
 		}
 	}
 }
