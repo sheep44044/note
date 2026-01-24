@@ -1,6 +1,7 @@
 package note
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -49,6 +50,24 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 
 	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d", userID)
 	h.cache.Del(c, cacheKeyAllNotes)
+
+	go func(n models.Note) {
+		// A. 拼接标题和内容，让搜索更准
+		textToEmbed := fmt.Sprintf("%s\n%s", n.Title, n.Content)
+
+		// B. 调用 OpenAI/豆包 生成向量
+		vec, err := h.ai.GetEmbedding(textToEmbed)
+		if err != nil {
+			// 建议加个日志，fmt.Println("AI Embedding failed:", err)
+			return
+		}
+
+		// C. 存入 Qdrant (传入 ID, 向量, UserID, IsPublic)
+		err = h.qdrant.Upsert(context.Background(), n.ID, vec, n.UserID, n.IsPrivate)
+		if err == nil {
+			// fmt.Println("Qdrant upsert failed:", err)
+		}
+	}(note)
 
 	go func() {
 		// 场景 A: 如果标题为空（之前被处理成占位符了），发送生成标题任务

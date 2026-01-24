@@ -1,6 +1,7 @@
 package note
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -78,6 +79,22 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	h.cache.Del(c, cacheKeyNote)
 	h.cache.Del(c, cacheKeyAllNotes)
 	slog.Info("Cache cleared for updated note", "note_id", id)
+
+	// 3. [新增] 异步更新 Qdrant
+	go func(n models.Note) {
+		textToEmbed := fmt.Sprintf("%s\n%s", n.Title, n.Content)
+
+		vec, err := h.ai.GetEmbedding(textToEmbed)
+		if err != nil {
+			return
+		}
+
+		// 重新 Upsert 会覆盖旧数据，正好实现了更新
+		err = h.qdrant.Upsert(context.Background(), n.ID, vec, n.UserID, n.IsPrivate)
+		if err == nil {
+			// log error
+		}
+	}(note)
 
 	utils.Success(c, note)
 }
