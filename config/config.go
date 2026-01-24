@@ -30,9 +30,14 @@ type Config struct {
 	MQUser     string `mapstructure:"RABBITMQ_USER"`
 	MQPassword string `mapstructure:"RABBITMQ_PASSWORD"`
 
-	AIKey     string `mapstructure:"AI_API_KEY"`
-	AIBaseURL string `mapstructure:"AI_BASE_URL"`
-	AIModel   string `mapstructure:"AI_MODEL"`
+	QdrantHost   string `mapstructure:"QDRANT_HOST"`
+	QdrantPort   int    `mapstructure:"QDRANT_PORT"`
+	QdrantAPIKey string `mapstructure:"QDRANT_API_KEY"`
+
+	VolcEngineKey     string `mapstructure:"VolcEngineKey"`
+	VolcEngineBaseURL string `mapstructure:"VolcEngineBaseURL"`
+	VolcChatModelID   string `mapstructure:"VolcChatModelID"`
+	VolcEmbedModelID  string `mapstructure:"VolcEmbedModelID"`
 }
 
 func Load() (*Config, error) {
@@ -95,8 +100,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("RABBITMQ_USER", "admin")
 	v.SetDefault("RABBITMQ_PASSWORD", "123456")
 
-	v.SetDefault("AI_BASE_URL", "https://api.deepseek.com")
-	v.SetDefault("AI_MODEL", "deepseek-chat")
+	v.SetDefault("QDRANT_HOST", "localhost")
+	v.SetDefault("QDRANT_PORT", 6334)
+	v.SetDefault("QDRANT_API_KEY", "")
+
+	v.SetDefault("volc.engine.key", "这里填你新生成的Key") // 生产环境务必通过环境变量覆盖
+	v.SetDefault("volc.engine.base_url", "https://ark.cn-beijing.volces.com/api/v3")
+	v.SetDefault("volc.engine.chat_model_id", "ep-20251219174526-wnm95")
+	v.SetDefault("volc.engine.embed_model_id", "ep-20251219175039-rrcf2")
 }
 
 func configureViper(v *viper.Viper) {
