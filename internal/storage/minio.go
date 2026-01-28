@@ -11,13 +11,14 @@ import (
 )
 
 type FileStorage struct {
-	client   *minio.Client
-	bucket   string
-	endpoint string
+	client    *minio.Client
+	bucket    string
+	endpoint  string
+	publicURL string
 }
 
 // NewFileStorage 初始化 MinIO 连接
-func NewFileStorage(endpoint, accessKey, secretKey, bucketName string) *FileStorage {
+func NewFileStorage(endpoint, publicURL, accessKey, secretKey, bucketName string) *FileStorage {
 	// Initialize minio client object.
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
@@ -39,9 +40,10 @@ func NewFileStorage(endpoint, accessKey, secretKey, bucketName string) *FileStor
 	}
 
 	return &FileStorage{
-		client:   minioClient,
-		bucket:   bucketName,
-		endpoint: endpoint,
+		client:    minioClient,
+		bucket:    bucketName,
+		endpoint:  endpoint,
+		publicURL: publicURL,
 	}
 }
 
@@ -59,6 +61,6 @@ func (s *FileStorage) UploadImage(ctx context.Context, fileName string, fileSize
 
 	// 拼接访问 URL
 	// 本地开发: http://localhost:9000/notes-images/xxxx.jpg
-	fileURL := fmt.Sprintf("http://%s/%s/%s", s.endpoint, s.bucket, fileName)
+	fileURL := fmt.Sprintf("http://%s/%s/%s", s.publicURL, s.bucket, fileName)
 	return fileURL, nil
 }

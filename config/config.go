@@ -40,6 +40,7 @@ type Config struct {
 	VolcEmbedModelID  string `mapstructure:"VolcEmbedModelID"`
 
 	MinioEndpoint  string `mapstructure:"MINIO_ENDPOINT"`
+	MinioPublicURL string `mapstructure:"MINIO_PUBLIC_URL"`
 	MinioAccessKey string `mapstructure:"MINIO_ACCESS_KEY"`
 	MinioSecretKey string `mapstructure:"MINIO_SECRET_KEY"`
 	MinioBucket    string `mapstructure:"MINIO_BUCKET"`
@@ -116,6 +117,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("volc.engine.embed_model_id", "ep-20251219175039-rrcf2")
 
 	v.SetDefault("MINIO_ENDPOINT", "localhost:9000")
+	v.SetDefault("MINIO_PUBLIC_URL", "http://localhost:9000")
 	v.SetDefault("MINIO_BUCKET", "notes-images")
 	v.SetDefault("MINIO_USE_SSL", false)
 }

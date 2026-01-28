@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"log"
 	"log/slog"
 	"note/config"
 	"note/internal/ai"
@@ -13,6 +15,7 @@ import (
 	"note/internal/tag"
 	"note/internal/user"
 	"note/internal/vector"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
@@ -57,11 +60,29 @@ func main() {
 	consumer.Start()
 
 	minioSvc := storage.NewFileStorage(
-		cfg.MinioEndpoint,  // "localhost:9000"
-		cfg.MinioAccessKey, // "admin"
-		cfg.MinioSecretKey, // "password123"
-		cfg.MinioBucket,    // "notes-images"
+		cfg.MinioEndpoint,  // 内部连接用: "minio:9000"
+		cfg.MinioPublicURL, // 外部展示用: "http://localhost:9000" (上线改成服务器IP)
+		cfg.MinioAccessKey,
+		cfg.MinioSecretKey,
+		cfg.MinioBucket,
 	)
+
+	jaegerURL := os.Getenv("JAEGER_ENDPOINT")
+	if jaegerURL == "" {
+		jaegerURL = "http://localhost:14268/api/traces"
+	}
+
+	// 初始化 Tracer
+	tp, err := middleware.InitTracer("note-service", jaegerURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// 程序退出时关闭 Tracer，把剩下的数据发出去
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	// 迁移所有模型
 	err = db.AutoMigrate(&models.User{}, &models.Note{}, &models.Tag{}, &models.Favorite{}, &models.Reaction{}, &models.UserFollow{})
