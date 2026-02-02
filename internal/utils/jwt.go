@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -13,6 +14,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
 )
+
+var RedisClient *cache.RedisCache
 
 func GenerateToken(cfg *config.Config, userID uint, username string) (string, error) {
 	// 生成唯一ID用于黑名单
@@ -53,16 +56,18 @@ func IsTokenBlacklisted(tokenString string) (bool, error) {
 		return false, nil
 	}
 
+	if RedisClient == nil {
+		return false, errors.New("redis client not initialized")
+	}
+
 	// 4. 查询 Redis 黑名单
 	key := "blacklist:" + jtiStr
-	_, err := cache.Get(key)
+	_, err := RedisClient.Get(context.Background(), key)
 	// 不在黑名单中
 	if errors.Is(err, redis.Nil) {
 		return false, nil
 	}
-
 	if err != nil {
-		//  Redis 出错了！返回错误，由调用方决定是否降级
 		return false, fmt.Errorf("redis error checking blacklist: %w", err)
 	}
 
@@ -78,7 +83,7 @@ func AddTokenToBlacklist(tokenString string, expiration time.Duration) error {
 
 	if jti, ok := claims["jti"].(float64); ok {
 		key := "blacklist:" + fmt.Sprintf("%d", int64(jti))
-		return cache.Set(key, "1", expiration)
+		return RedisClient.Set(context.Background(), key, "1", expiration)
 	}
 	return nil
 }
