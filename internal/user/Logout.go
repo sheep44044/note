@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 func (h *UserHandler) Logout(c *gin.Context) {
@@ -22,12 +23,11 @@ func (h *UserHandler) Logout(c *gin.Context) {
 	}
 	tokenString := parts[1]
 
-	// 获取token剩余有效期 - 简单做法：使用配置的过期时间
 	expiration := h.cfg.JWTExpirationTime
 
-	// 加入黑名单
 	err := utils.AddTokenToBlacklist(tokenString, expiration)
 	if err != nil {
+		zap.L().Error("failed to add token to blacklist", zap.Error(err), zap.String("token_part", utils.GetTokenHash(tokenString)))
 		utils.Error(c, http.StatusInternalServerError, "failed to logout")
 		return
 	}

@@ -1,15 +1,13 @@
 package user
 
 import (
-	"encoding/json"
-	"fmt"
-	"log/slog"
 	"net/http"
 	"note/internal/models"
 	"note/internal/utils"
 	"note/internal/validators"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -33,33 +31,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	token, err := utils.GenerateToken(h.cfg, user.ID, user.Username)
 	if err != nil {
+		zap.L().Error("failed to generate token", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "failed to generate token")
 		return
-	}
-
-	userData := map[string]interface{}{
-		"id":         user.ID,
-		"username":   user.Username,
-		"created_at": user.CreatedAt,
-		"updated_at": user.UpdatedAt,
-		"token":      token, // 也可以存储token，便于后续验证
-	}
-
-	// 将用户数据转换为JSON
-	userDataJSON, err := json.Marshal(userData)
-	if err != nil {
-		slog.Warn("failed to marshal user data for caching", "error", err, "user_id", user.ID)
-	} else {
-		// 使用redis包中定义的Set函数缓存数据
-		// 缓存键格式: user:session:{userID}
-		cacheKey := fmt.Sprintf("user:session:%d", user.ID)
-		expiration := h.cfg.JWTExpirationTime // 使用与JWT相同的过期时间
-
-		if err := h.cache.SetWithRandomTTL(c, cacheKey, string(userDataJSON), expiration); err != nil {
-			slog.Warn("failed to cache user session", "error", err, "user_id", user.ID)
-		} else {
-			slog.Debug("user session cached successfully", "user_id", user.ID, "cache_key", cacheKey)
-		}
 	}
 
 	utils.Success(c, gin.H{"token": token, "user": gin.H{

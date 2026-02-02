@@ -7,13 +7,14 @@ import (
 	"note/internal/utils"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
 func (h *UserHandler) ModifyPassword(c *gin.Context) {
-	username := c.GetString("username")
-	if username == "" {
+	userID, err := utils.GetUserID(c)
+	if err != nil {
 		utils.Error(c, http.StatusUnauthorized, "user not authenticated")
 		return
 	}
@@ -25,18 +26,13 @@ func (h *UserHandler) ModifyPassword(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := h.db.Select("id, password").Where("username = ?", username).First(&user).Error; err != nil {
+	if err := h.db.Select("password").First(&user, userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusUnauthorized, "user not found")
 		} else {
+			zap.L().Error("db query failed", zap.Error(err))
 			utils.Error(c, http.StatusInternalServerError, "database error")
 		}
-		return
-	}
-
-	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-	if err != nil {
-		utils.Error(c, http.StatusInternalServerError, "failed to hash new password")
 		return
 	}
 
@@ -45,7 +41,15 @@ func (h *UserHandler) ModifyPassword(c *gin.Context) {
 		return
 	}
 
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		zap.L().Error("hash password failed", zap.Error(err))
+		utils.Error(c, http.StatusInternalServerError, "failed to hash new password")
+		return
+	}
+
 	if err := h.db.Model(&user).Update("password", string(newHash)).Error; err != nil {
+		zap.L().Error("update password failed", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "failed to update password")
 		return
 	}
