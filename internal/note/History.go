@@ -34,8 +34,18 @@ func (h *NoteHandler) GetRecentNotes(c *gin.Context) {
 	if len(noteIDs) == 0 {
 		var histories []models.History
 		if err := h.db.Where("user_id = ?", userID).Order("updated_at DESC").Limit(5).Find(&histories).Error; err == nil {
-			for _, h := range histories {
-				noteIDs = append(noteIDs, strconv.Itoa(int(h.NoteID)))
+			if len(histories) > 0 {
+				ctx := context.Background()
+				pipe := h.cache.Pipeline()
+				for _, h := range histories {
+					noteIDStr := strconv.Itoa(int(h.NoteID))
+					noteIDs = append(noteIDs, noteIDStr)
+					pipe.ZAdd(ctx, key, redis.Z{Score: float64(h.UpdatedAt.Unix()), Member: noteIDStr})
+				}
+				pipe.Expire(ctx, key, 30*24*time.Hour)
+				if _, err := pipe.Exec(ctx); err != nil {
+					zap.L().Warn("failed to warm up history cache", zap.Uint("user_id", userID), zap.Error(err))
+				}
 			}
 		}
 	}

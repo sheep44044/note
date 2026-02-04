@@ -37,12 +37,22 @@ func (h *NoteHandler) ReactToNote(c *gin.Context) {
 		return
 	}
 
-	// 删除用户对该笔记的旧 reaction（同一时间只能点一个）
-	h.db.Where("user_id = ? AND note_id = ?", userID, noteID).Delete(&models.Reaction{})
+	msg := models.ReactionMsg{
+		UserID: userID,
+		NoteID: uint(noteIDUint64),
+		Emoji:  input.Emoji,
+		Action: "toggle",
+	}
 
-	msg := models.ReactionMsg{UserID: userID, NoteID: uint(noteIDUint64), Emoji: input.Emoji, Action: "add"}
 	body, _ := json.Marshal(msg)
-	h.rabbit.Publish("react_queue", body)
+	if err := h.rabbit.Publish("react_queue", body); err != nil {
+		utils.Error(c, http.StatusInternalServerError, "操作失败")
+		return
+	}
 
-	utils.Success(c, gin.H{"message": "反应成功"})
+	// 清理缓存（笔记详情缓存）
+	// 注意：这里可能需要清理很频繁，如果是高并发场景，建议只更新 Redis 的 Hash 计数，不删整个 Key
+	_ = h.cache.Del(c, "note:"+noteID)
+
+	utils.Success(c, gin.H{"message": "操作已接收"})
 }

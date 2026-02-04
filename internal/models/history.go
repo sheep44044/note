@@ -3,10 +3,12 @@ package models
 import "time"
 
 type History struct {
-	ID        uint      `gorm:"primaryKey"`
-	UserID    uint      `gorm:"index"` // 加索引方便查询
-	NoteID    uint      `gorm:"index"`
+	ID     uint `gorm:"primaryKey"`
+	UserID uint `gorm:"uniqueIndex:idx_user_note"`
+	NoteID uint `gorm:"uniqueIndex:idx_user_note"`
+
 	CreatedAt time.Time `gorm:"autoCreateTime"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime"`
 }
 
 type HistoryMsg struct {

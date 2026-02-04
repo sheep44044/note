@@ -2,13 +2,12 @@ package mq
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log/slog"
 	"note/config"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
 )
 
 type RabbitMQ struct {
@@ -33,15 +32,26 @@ func New(cfg *config.Config) (*RabbitMQ, error) {
 
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close() // 如果通道创建失败，记得关闭连接
+		_ = conn.Close() // 如果通道创建失败，记得关闭连接
 		return nil, fmt.Errorf("failed to open a channel: %w", err)
 	}
 
-	initQueue(ch, "favorite_queue")
-	initQueue(ch, "react_queue")
-	initQueue(ch, "history_queue")
-	initQueue(ch, "feed_queue")
-	initQueue(ch, "ai_queue")
+	queues := []string{
+		"favorite_queue",
+		"react_queue",
+		"history_queue",
+		"feed_queue",
+		"ai_queue",
+	}
+
+	// 遍历初始化，只要有一个失败，整个启动过程就应该失败
+	for _, q := range queues {
+		if err := initQueue(ch, q); err != nil {
+			_ = ch.Close()   // 尽力清理
+			_ = conn.Close() // 尽力清理
+			return nil, fmt.Errorf("failed to init queue %s: %w", q, err)
+		}
+	}
 
 	return &RabbitMQ{
 		conn:    conn,
@@ -58,47 +68,43 @@ func initQueue(ch *amqp.Channel, queueName string) error {
 		false,     // no-wait
 		nil,       // arguments
 	)
-	if err != nil {
-		slog.Error("Failed to declare a queue", "error", err)
-		return err
-	}
-	return nil
+	return err
 }
 
 // Close 关闭连接
 func (r *RabbitMQ) Close() {
 	if r.channel != nil {
-		r.channel.Close()
+		if err := r.channel.Close(); err != nil {
+			// 这种错误通常是因为连接已经关闭了，记录一下即可，不影响主流程
+			zap.L().Warn("Failed to close rabbitmq channel", zap.Error(err))
+		}
 	}
 	if r.conn != nil {
-		r.conn.Close()
+		if err := r.conn.Close(); err != nil {
+			zap.L().Warn("Failed to close rabbitmq connection", zap.Error(err))
+		}
 	}
 }
 
 // Publish 发送消息的通用方法
-func (r *RabbitMQ) Publish(queueName string, body interface{}) error {
-	// 将结构体序列化为 JSON
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("failed to marshal msg: %w", err)
-	}
+func (r *RabbitMQ) Publish(queueName string, body []byte) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = r.channel.PublishWithContext(ctx,
+	err := r.channel.PublishWithContext(ctx,
 		"",        // exchange
 		queueName, // routing key (queue name)
 		false,     // mandatory
 		false,     // immediate
 		amqp.Publishing{
 			ContentType:  "application/json",
-			Body:         jsonBody,
+			Body:         body,
 			DeliveryMode: amqp.Persistent, // 消息持久化
 		})
 
 	if err != nil {
-		slog.Error("Failed to publish message", "queue", queueName, "error", err)
+		zap.L().Error("Failed to publish message", zap.String("queue", queueName), zap.Error(err))
 		return err
 	}
 

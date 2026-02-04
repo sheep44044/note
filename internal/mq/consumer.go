@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"note/internal/ai"
 	"note/internal/cache"
 	"note/internal/models"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Consumer 结构体用于持有 DB 连接等依赖
@@ -33,54 +34,73 @@ func NewConsumer(db *gorm.DB, cache *cache.RedisCache, rabbit *RabbitMQ, ai *ai.
 
 // Start 启动所有消费者监听
 func (c *Consumer) Start() {
-	// 启动点赞消费者
 	go c.consumeFavorite()
 	go c.consumeReaction()
 	go c.ConsumeHistory()
 	go c.consumeFeedPush()
 	go c.consumeAITasks()
-	// 这里可以启动其他消费者...
 }
 
 func (c *Consumer) consumeFavorite() {
 	msgs, err := c.rabbit.Consume("favorite_queue")
 	if err != nil {
-		slog.Error("Failed to start favorite consumer", "error", err)
+		zap.L().Error("Failed to start favorite consumer", zap.Error(err))
 		return
 	}
 
-	slog.Info("Waiting for favorite messages...")
+	zap.L().Info("Waiting for favorite messages...")
 
 	for d := range msgs {
 		var msg models.FavoriteMsg
 		if err := json.Unmarshal(d.Body, &msg); err != nil {
-			slog.Error("Failed to unmarshal msg", "error", err)
-			continue // 格式错误直接丢弃
+			zap.L().Error("Failed to unmarshal msg", zap.Error(err))
+			continue
 		}
 
-		if msg.Action == "add" {
-			fav := models.Favorite{UserID: msg.UserID, NoteID: msg.NoteID}
-			if err := c.db.Create(&fav).Error; err != nil {
-				// 只有非重复键错误才当做异常处理
-				if !errors.Is(err, gorm.ErrDuplicatedKey) {
-					slog.Error("Failed to insert favorite", "error", err)
-					//  在这里可以做重试逻辑，或者手动 Nack
-				}
-			} else {
-				// 更新计数（+1）
-				c.db.Model(&models.Note{}).Where("id = ?", msg.NoteID).
-					Update("favorite_count", gorm.Expr("favorite_count + 1"))
-				slog.Info("Favorite added", "user_id", msg.UserID, "note_id", msg.NoteID)
-			}
-		} else if msg.Action == "remove" {
-			// 处理取消收藏
-			if err := c.db.Where("user_id = ? AND note_id = ?", msg.UserID, msg.NoteID).
-				Delete(&models.Favorite{}).Error; err == nil {
+		err := c.db.Transaction(func(tx *gorm.DB) error {
+			if msg.Action == "add" {
+				fav := models.Favorite{UserID: msg.UserID, NoteID: msg.NoteID}
 
-				c.db.Model(&models.Note{}).Where("id = ?", msg.NoteID).
-					Update("favorite_count", gorm.Expr("GREATEST(favorite_count - 1, 0)"))
-				slog.Info("Favorite removed", "user_id", msg.UserID, "note_id", msg.NoteID)
+				if err := tx.Create(&fav).Error; err != nil {
+					// 如果是重复收藏，直接返回 nil (忽略错误)，不更新计数
+					if errors.Is(err, gorm.ErrDuplicatedKey) {
+						return nil
+					}
+					return err // 其他错误抛出
+				}
+
+				return tx.Model(&models.Note{}).Where("id = ?", msg.NoteID).
+					Update("favorite_count", gorm.Expr("favorite_count + 1")).Error
+
+			} else if msg.Action == "remove" {
+				result := tx.Where("user_id = ? AND note_id = ?", msg.UserID, msg.NoteID).
+					Delete(&models.Favorite{})
+
+				if result.Error != nil {
+					return result.Error
+				}
+
+				if result.RowsAffected > 0 {
+					return tx.Model(&models.Note{}).Where("id = ?", msg.NoteID).
+						Update("favorite_count", gorm.Expr("GREATEST(favorite_count - 1, 0)")).Error
+				}
+				return nil
 			}
+			return nil
+		})
+
+		if err != nil {
+			zap.L().Error("Process favorite msg failed",
+				zap.String("action", msg.Action),
+				zap.Uint("uid", msg.UserID),
+				zap.Error(err),
+			)
+		} else {
+			zap.L().Info("Favorite processed",
+				zap.String("action", msg.Action),
+				zap.Uint("uid", msg.UserID),
+				zap.Uint("nid", msg.NoteID),
+			)
 		}
 	}
 }
@@ -88,56 +108,123 @@ func (c *Consumer) consumeFavorite() {
 func (c *Consumer) consumeReaction() {
 	msgs, err := c.rabbit.Consume("react_queue")
 	if err != nil {
-		slog.Error("Failed to start react consumer", "error", err)
+		zap.L().Error("Failed to start react consumer", zap.Error(err))
 		return
 	}
+	zap.L().Info("Waiting for react messages...")
 
-	slog.Info("Waiting for react messages...")
 	for d := range msgs {
 		var msg models.ReactionMsg
 		if err := json.Unmarshal(d.Body, &msg); err != nil {
-			slog.Error("Failed to unmarshal msg", "error", err)
+			zap.L().Error("Failed to unmarshal msg", zap.Error(err))
 			continue
 		}
-		if msg.Action == "add" {
+
+		if msg.Action == "toggle" {
+			c.handleToggleReaction(msg)
+		}
+	}
+}
+
+func (c *Consumer) handleToggleReaction(msg models.ReactionMsg) {
+	err := c.db.Transaction(func(tx *gorm.DB) error {
+
+		result := tx.Where("user_id = ? AND note_id = ? AND emoji = ?", msg.UserID, msg.NoteID, msg.Emoji).
+			Delete(&models.Reaction{})
+
+		if result.Error != nil {
+			return result.Error
+		}
+
+		// 定义变更量：1 (新增) 或 -1 (取消)
+		delta := 0
+		if result.RowsAffected > 0 {
+			delta = -1 // 之前有点赞，现在取消
+			zap.L().Info("Reaction removed", zap.Uint("uid", msg.UserID), zap.String("emoji", msg.Emoji))
+		} else {
+			// 之前没点赞，现在新增
 			reaction := models.Reaction{
 				UserID: msg.UserID,
 				NoteID: msg.NoteID,
 				Emoji:  msg.Emoji,
 			}
-			if err := c.db.Create(&reaction).Error; err != nil {
-				if !errors.Is(err, gorm.ErrDuplicatedKey) {
-					slog.Error("Failed to insert reaction", "error", err)
+			if err := tx.Create(&reaction).Error; err != nil {
+				// 处理并发重复点击
+				if errors.Is(err, gorm.ErrDuplicatedKey) {
+					return nil
 				}
+				return err
 			}
+			delta = 1
+			zap.L().Info("Reaction added", zap.Uint("uid", msg.UserID), zap.String("emoji", msg.Emoji))
 		}
+
+		var note models.Note
+		// 锁定这行记录 (Select For Update)
+		// 这样在事务提交前，其他 Consumer 无法修改这条 Note，保证计数准确
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&note, msg.NoteID).Error; err != nil {
+			return err
+		}
+
+		if note.ReactionCounts == nil {
+			note.ReactionCounts = make(map[string]int)
+		}
+
+		currentCount := note.ReactionCounts[msg.Emoji]
+		newCount := currentCount + delta
+
+		if newCount < 0 {
+			newCount = 0
+		}
+
+		if newCount == 0 {
+			delete(note.ReactionCounts, msg.Emoji)
+		} else {
+			note.ReactionCounts[msg.Emoji] = newCount
+		}
+
+		// 注意：必须使用 Select("ReactionCounts") 或者 Save，确保 GORM 知道要更新这个字段
+		// 使用 UpdateColumn 可以避免更新 UpdatedAt 时间戳（如果你不想让点赞刷新修改时间）
+		if err := tx.Model(&note).Update("reaction_counts", note.ReactionCounts).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		zap.L().Error("Handle reaction failed", zap.Error(err))
 	}
 }
 
 func (c *Consumer) ConsumeHistory() {
 	msgs, err := c.rabbit.Consume("history_queue")
 	if err != nil {
-		slog.Error("Failed to start react consumer", "error", err)
+		zap.L().Error("Failed to start react consumer", zap.Error(err))
 		return
 	}
 
-	slog.Info("Waiting for react messages...")
+	zap.L().Info("Waiting for react messages...")
 	for d := range msgs {
 		var msg models.HistoryMsg
 		if err := json.Unmarshal(d.Body, &msg); err != nil {
-			slog.Error("Failed to unmarshal msg", "error", err)
+			zap.L().Error("Failed to unmarshal msg", zap.Error(err))
 			continue
 		}
-
-		c.db.Where("user_id = ? AND note_id = ?", msg.UserID, msg.NoteID).Delete(&models.History{})
 
 		history := models.History{
 			UserID: msg.UserID,
 			NoteID: msg.NoteID,
 		}
 
-		if err := c.db.Create(&history).Error; err != nil {
-			slog.Error("Failed to insert history", "error", err)
+		err := c.db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "user_id"}, {Name: "note_id"}}, // 指定冲突列
+			DoUpdates: clause.AssignmentColumns([]string{"updated_at"}),      // 冲突时更新时间
+		}).Create(&history).Error
+
+		if err != nil {
+			zap.L().Error("Failed to upsert history", zap.Error(err))
 		}
 	}
 }
@@ -145,20 +232,20 @@ func (c *Consumer) ConsumeHistory() {
 func (c *Consumer) consumeFeedPush() {
 	msgs, err := c.rabbit.Consume("feed_queue")
 	if err != nil {
-		slog.Error("Feed consumer start failed", "err", err)
+		zap.L().Error("Feed consumer start failed", zap.Error(err))
 		return
 	}
 
-	// 预定义一个最大 Feed 长度，防止 Redis 无限膨胀
 	const MaxFeedLength = 500
 
 	for d := range msgs {
 		var msg models.FeedMsg
-		json.Unmarshal(d.Body, &msg)
+		if err := json.Unmarshal(d.Body, &msg); err != nil {
+			zap.L().Error("Failed to unmarshal msg", zap.Error(err))
+			continue
+		}
 
-		// 1. 查粉丝 (这一步如果粉丝量巨大，在生产环境通常需要分页查，这里先演示一次性查)
 		var fanIDs []uint
-		// 从 user_follows 表查谁关注了 AuthorID
 		c.db.Model(&models.UserFollow{}).
 			Where("followed_id = ?", msg.AuthorID).
 			Pluck("follower_id", &fanIDs)
@@ -167,28 +254,21 @@ func (c *Consumer) consumeFeedPush() {
 			continue
 		}
 
-		// 2. 批量推送到粉丝的 Redis List
-		// 使用 Pipeline 可以在一次网络请求中发送多条命令，极大提升性能
 		ctx := context.Background()
-		pipe := c.cache.Pipeline() // 假设你的 Consumer 结构体里存了 Redis Client
+		pipe := c.cache.Pipeline()
 
 		for _, fanID := range fanIDs {
 			key := fmt.Sprintf("timeline:user:%d", fanID)
 
-			// LPUSH: 把最新笔记 ID 塞到列表头部
 			pipe.LPush(ctx, key, msg.NoteID)
-
-			// LTRIM: 保持列表只有最新的 500 条
 			pipe.LTrim(ctx, key, 0, MaxFeedLength-1)
 		}
 
-		// 执行管道命令
 		_, err := pipe.Exec(ctx)
 		if err != nil {
-			slog.Error("Feed push pipeline failed", "err", err)
-			// 这里可以选择 Nack 重试，或者记录日志人工处理
+			zap.L().Error("Feed push pipeline failed", zap.Error(err))
 		} else {
-			slog.Info("Feed pushed to fans", "author_id", msg.AuthorID, "fan_count", len(fanIDs))
+			zap.L().Info("Feed pushed to fans", zap.Uint("author_id", msg.AuthorID), zap.Int("fan_count", len(fanIDs)))
 		}
 	}
 }
@@ -196,11 +276,11 @@ func (c *Consumer) consumeFeedPush() {
 func (c *Consumer) consumeAITasks() {
 	msgs, err := c.rabbit.Consume("ai_queue")
 	if err != nil {
-		slog.Error("Failed to start AI consumer", "error", err)
+		zap.L().Error("Failed to start AI consumer", zap.Error(err))
 		return
 	}
 
-	slog.Info("Waiting for AI tasks...")
+	zap.L().Info("Waiting for AI tasks...")
 
 	for d := range msgs {
 		var msg models.AITaskMsg
@@ -208,12 +288,11 @@ func (c *Consumer) consumeAITasks() {
 			continue
 		}
 
-		slog.Info("Processing AI task", "note_id", msg.NoteID, "task", msg.Task)
+		zap.L().Info("Processing AI task", zap.Uint("note_id", msg.NoteID), zap.String("task", msg.Task))
 
-		// 1. 查数据库获取笔记内容
 		var note models.Note
 		if err := c.db.First(&note, msg.NoteID).Error; err != nil {
-			slog.Error("Note not found", "id", msg.NoteID)
+			zap.L().Error("Note not found", zap.Uint("id", msg.NoteID))
 			continue
 		}
 
@@ -233,15 +312,14 @@ func (c *Consumer) consumeAITasks() {
 			}
 		}
 
-		// 3. 更新数据库
 		if len(updateMap) > 0 {
 			if err := c.db.Model(&note).Updates(updateMap).Error; err != nil {
-				slog.Error("Failed to update note with AI result", "err", err)
+				zap.L().Error("Failed to update note with AI result", zap.Error(err))
 			} else {
-				slog.Info("AI Update success", "note_id", note.ID)
+				zap.L().Info("AI Update success", zap.Uint("note_id", note.ID))
 
 				cacheKey := fmt.Sprintf("note:%d", note.ID)
-				c.cache.Del(context.Background(), cacheKey)
+				_ = c.cache.Del(context.Background(), cacheKey)
 			}
 		}
 	}
