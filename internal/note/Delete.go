@@ -31,10 +31,10 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	}
 
 	cacheKeyNote := "note:" + c.Param("id")
-	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d", userID)
+	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d*", userID)
 
 	_ = h.cache.Del(c, cacheKeyNote)
-	_ = h.cache.Del(c, cacheKeyAllNotes)
+	_ = h.cache.ClearCacheByPattern(c, h.cache, cacheKeyAllNotes)
 
 	zap.L().Info("Cache cleared for deleted note", zap.Int("note_id", id))
 	utils.Success(c, gin.H{"message": "deleted"})

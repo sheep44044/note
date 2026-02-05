@@ -45,7 +45,7 @@ func (h *UserHandler) FollowUser(c *gin.Context) {
 			Where("follower_id = ? AND followed_id = ?", me, targetID).
 			Count(&count)
 		if count > 0 {
-			return errors.New("already_followed") // 自定义错误标记
+			return errors.New("already_followed")
 		}
 
 		followRel := models.UserFollow{
