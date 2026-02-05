@@ -2,40 +2,35 @@ package vector
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/qdrant/go-client/qdrant"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 type QdrantService struct {
 	client *qdrant.Client
-	col    string // 集合名称，例如 "notes_collection"
+	col    string
 }
 
 func NewQdrantService(host string, port int, collectionName string, apiKey string) *QdrantService {
-	// 1. 基础配置
 	config := &qdrant.Config{
 		Host: host,
 		Port: port,
 	}
 
-	// 2. 如果有密码
 	if apiKey != "" {
 		config.APIKey = apiKey
 		config.UseTLS = false // 根据实际情况，通常本地和内网部署设为 false
 	}
 
-	// 3. 配置连接选项 [修正点]
-	// 注意：这里使用的是 grpc.DialOption，而不是 qdrant.ClientOption
 	if !config.UseTLS {
 		config.GrpcOptions = []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		}
 	}
 
-	// 4. 创建客户端
 	client, err := qdrant.NewClient(config)
 	if err != nil {
 		panic("无法连接 Qdrant 数据库: " + err.Error())
@@ -46,12 +41,12 @@ func NewQdrantService(host string, port int, collectionName string, apiKey strin
 	return svc
 }
 
-// ensureCollection 就像 LanMei 代码里那样，不存在就创建
+// ensureCollection 不存在就创建
 func (s *QdrantService) ensureCollection() {
 	ctx := context.Background()
 	exists, err := s.client.CollectionExists(ctx, s.col)
 	if err != nil {
-		slog.Error("Check qdrant collection failed", "err", err)
+		zap.L().Error("Check qdrant collection failed", zap.Error(err))
 		return
 	}
 	if !exists {
@@ -63,7 +58,7 @@ func (s *QdrantService) ensureCollection() {
 			}),
 		})
 		if err != nil {
-			slog.Error("Create collection failed", "err", err)
+			zap.L().Error("Create collection failed", zap.Error(err))
 		}
 	}
 }
@@ -74,14 +69,14 @@ func (s *QdrantService) ensureCollection() {
 func (s *QdrantService) Upsert(ctx context.Context, id uint, vector []float32, userID uint, isPrivate bool) error {
 	payload := map[string]*qdrant.Value{
 		"user_id":    {Kind: &qdrant.Value_IntegerValue{IntegerValue: int64(userID)}},
-		"is_private": {Kind: &qdrant.Value_BoolValue{BoolValue: isPrivate}}, // 新增这个！
+		"is_private": {Kind: &qdrant.Value_BoolValue{BoolValue: isPrivate}},
 	}
 
 	points := []*qdrant.PointStruct{
 		{
 			Id:      qdrant.NewIDNum(uint64(id)),
 			Vectors: qdrant.NewVectors(vector...),
-			Payload: payload, // 把 Payload 存进去
+			Payload: payload,
 		},
 	}
 
@@ -92,14 +87,10 @@ func (s *QdrantService) Upsert(ctx context.Context, id uint, vector []float32, u
 	return err
 }
 
-// internal/vector/qdrant.go
-
 func (s *QdrantService) Search(ctx context.Context, vector []float32, limit uint64, userID uint) ([]uint, error) {
-
 	// 构造 Filter: (user_id == current_user) OR (is_public == true)
 	filter := &qdrant.Filter{
 		Should: []*qdrant.Condition{
-			// 条件 1: 是我自己的笔记
 			{
 				ConditionOneOf: &qdrant.Condition_Field{
 					Field: &qdrant.FieldCondition{
@@ -112,7 +103,6 @@ func (s *QdrantService) Search(ctx context.Context, vector []float32, limit uint
 					},
 				},
 			},
-			// 条件 2: 是公开的笔记
 			{
 				ConditionOneOf: &qdrant.Condition_Field{
 					Field: &qdrant.FieldCondition{
