@@ -17,12 +17,13 @@ func (h *NoteHandler) ListPublicNotes(c *gin.Context) {
 		return
 	}
 
-	sortBy := c.DefaultQuery("sort", "time") // time / popular
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if page < 1 {
 		page = 1
 	}
 	limit := 20
+
+	sortBy := c.DefaultQuery("sort", "time") // time / popular
 
 	query := h.db.Where("is_private = ?", false)
 
@@ -33,9 +34,15 @@ func (h *NoteHandler) ListPublicNotes(c *gin.Context) {
 		query = query.Order("created_at DESC")
 	}
 
-	var notes []models.Note
-	h.db.Limit(limit).Offset((page - 1) * limit).Find(&notes)
+	// 4. 获取总数，用于前端分页显示
+	var total int64
+	query.Count(&total)
 
+	var notes []models.Note
+	if err := query.Limit(limit).Offset((page - 1) * limit).Find(&notes).Error; err != nil {
+		utils.Error(c, http.StatusInternalServerError, "获取笔记失败")
+		return
+	}
 	// 注入“当前用户是否已收藏”
 	noteIDs := make([]uint, len(notes))
 	for i, n := range notes {
@@ -49,7 +56,6 @@ func (h *NoteHandler) ListPublicNotes(c *gin.Context) {
 		favSet[f.NoteID] = true
 	}
 
-	// 构造返回结构（避免暴露 user_id 等敏感字段）
 	type NoteDTO struct {
 		ID            uint      `json:"id"`
 		Title         string    `json:"title"`
