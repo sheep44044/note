@@ -2,13 +2,14 @@ package config
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
 
 type Config struct {
+	AppEnv string `mapstructure:"APP_ENV"`
+
 	DBUser     string `mapstructure:"DB_USER"`
 	DBPassword string `mapstructure:"DB_PASSWORD"`
 	DBHost     string `mapstructure:"DB_HOST"`
@@ -34,10 +35,10 @@ type Config struct {
 	QdrantPort   int    `mapstructure:"QDRANT_PORT"`
 	QdrantAPIKey string `mapstructure:"QDRANT_API_KEY"`
 
-	VolcEngineKey     string `mapstructure:"VolcEngineKey"`
-	VolcEngineBaseURL string `mapstructure:"VolcEngineBaseURL"`
-	VolcChatModelID   string `mapstructure:"VolcChatModelID"`
-	VolcEmbedModelID  string `mapstructure:"VolcEmbedModelID"`
+	VolcEngineKey     string `mapstructure:"VOLC_ENGINE_KEY"`
+	VolcEngineBaseURL string `mapstructure:"VOLC_ENGINE_BASE_URL"`
+	VolcChatModelID   string `mapstructure:"VOLC_CHAT_MODEL_ID"`
+	VolcEmbedModelID  string `mapstructure:"VOLC_EMBED_MODEL_ID"`
 
 	MinioEndpoint  string `mapstructure:"MINIO_ENDPOINT"`
 	MinioPublicURL string `mapstructure:"MINIO_PUBLIC_URL"`
@@ -45,14 +46,32 @@ type Config struct {
 	MinioSecretKey string `mapstructure:"MINIO_SECRET_KEY"`
 	MinioBucket    string `mapstructure:"MINIO_BUCKET"`
 	MinioUseSSL    bool   `mapstructure:"MINIO_USE_SSL"`
+
+	JaegerEndpoint string `mapstructure:"JAEGER_ENDPOINT"`
 }
 
 func Load() (*Config, error) {
 	v := viper.New()
+
+	v.SetConfigName(".env")
+	v.SetConfigType("env")
+	v.AddConfigPath(".")
+	v.AddConfigPath("./config")
+
 	setDefaults(v)
-	configureViper(v)
-	if err := readConfiguration(v); err != nil {
-		return nil, fmt.Errorf("failed to load configuration: %w", err)
+
+	// 允许环境变量覆盖 (例如在 Docker/K8s 中通过 ENV 注入)
+	// 这一步非常关键：它允许系统环境变量覆盖 .env 文件
+	v.AutomaticEnv()
+
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Println("Warning: .env file not found, using defaults and system env")
+		} else {
+			return nil, fmt.Errorf("config file error: %w", err)
+		}
+	} else {
+		fmt.Printf("Using config file: %s\n", v.ConfigFileUsed())
 	}
 
 	var cfg Config
@@ -60,85 +79,32 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
-	// 兜底默认值（如果 env 未设置）
-	if cfg.JWTSecretKey == "" {
-		cfg.JWTSecretKey = "your_fallback_secret_key_change_in_production"
-	}
-	if cfg.JWTIssuer == "" {
-		cfg.JWTIssuer = "note_app"
-	}
-	if cfg.JWTExpirationTime == 0 {
-		cfg.JWTExpirationTime = time.Hour * 24
-	}
-
-	// Redis默认值
-	if cfg.RedisHost == "" {
-		cfg.RedisHost = "localhost"
-	}
-	if cfg.RedisPort == "" {
-		cfg.RedisPort = "6379"
-	}
-	if cfg.RedisDB == 0 {
-		cfg.RedisDB = 0
-	}
-
 	return &cfg, nil
 }
 
 func setDefaults(v *viper.Viper) {
+	v.SetDefault("APP_ENV", "dev") // 默认为开发环境
+
 	v.SetDefault("DB_USER", "root")
-	v.SetDefault("DB_PASSWORD", "root")
 	v.SetDefault("DB_HOST", "localhost")
 	v.SetDefault("DB_PORT", "3306")
-	v.SetDefault("DB_NAME", "notes_db")
 
 	v.SetDefault("SERVER_PORT", "8080")
-	v.SetDefault("JWT_SECRET_KEY", "your_fallback_secret_key_change_in_production")
-	v.SetDefault("JWT_ISSUER", "note_app")
 	v.SetDefault("JWT_EXPIRATION_TIME", "24h")
 
 	v.SetDefault("REDIS_HOST", "localhost")
 	v.SetDefault("REDIS_PORT", "6379")
-	v.SetDefault("REDIS_PASSWORD", "")
-	v.SetDefault("REDIS_DB", "0")
-
-	v.SetDefault("RABBITMQ_HOST", "localhost")
-	v.SetDefault("RABBITMQ_PORT", "5672")
-	v.SetDefault("RABBITMQ_USER", "admin")
-	v.SetDefault("RABBITMQ_PASSWORD", "123456")
+	v.SetDefault("REDIS_DB", 0)
 
 	v.SetDefault("QDRANT_HOST", "localhost")
 	v.SetDefault("QDRANT_PORT", 6334)
-	v.SetDefault("QDRANT_API_KEY", "")
 
-	v.SetDefault("volc.engine.key", "这里填你新生成的Key") // 生产环境务必通过环境变量覆盖
-	v.SetDefault("volc.engine.base_url", "https://ark.cn-beijing.volces.com/api/v3")
-	v.SetDefault("volc.engine.chat_model_id", "ep-20251219174526-wnm95")
-	v.SetDefault("volc.engine.embed_model_id", "ep-20251219175039-rrcf2")
+	v.SetDefault("VOLC_ENGINE_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
 
 	v.SetDefault("MINIO_ENDPOINT", "localhost:9000")
 	v.SetDefault("MINIO_PUBLIC_URL", "http://localhost:9000")
 	v.SetDefault("MINIO_BUCKET", "notes-images")
 	v.SetDefault("MINIO_USE_SSL", false)
-}
 
-func configureViper(v *viper.Viper) {
-	v.SetConfigName(".env")
-	v.SetConfigType("env")
-	v.AddConfigPath(".")
-	v.AddConfigPath("./config")
-	v.AutomaticEnv()
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-}
-
-func readConfiguration(v *viper.Viper) error {
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			fmt.Println("Warning: .env file not found, using defaults and system env")
-			return nil
-		}
-		return fmt.Errorf("config file error: %w", err)
-	}
-	fmt.Printf("Using config file: %s\n", v.ConfigFileUsed())
-	return nil
+	v.SetDefault("JAEGER_ENDPOINT", "http://localhost:14268/api/traces")
 }
