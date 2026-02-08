@@ -46,7 +46,7 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 
 	var tags []models.Tag
 	if len(req.TagIDs) > 0 {
-		h.db.Where("id IN ? AND user_id = ?", req.TagIDs, userID).Find(&tags)
+		h.svc.DB.Where("id IN ? AND user_id = ?", req.TagIDs, userID).Find(&tags)
 	}
 
 	note := models.Note{
@@ -57,26 +57,26 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 		IsPrivate: req.IsPrivate,
 	}
 
-	if err := h.db.Create(&note).Error; err != nil {
+	if err := h.svc.DB.Create(&note).Error; err != nil {
 		zap.L().Error("Create note db error", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "创建失败")
 		return
 	}
 
 	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d*", userID)
-	_ = h.cache.ClearCacheByPattern(c, h.cache, cacheKeyAllNotes)
+	_ = h.svc.Cache.ClearCacheByPattern(c, h.svc.Cache, cacheKeyAllNotes)
 
 	go func(n models.Note) {
 		// 拼接标题和内容，让搜索更准
 		textToEmbed := fmt.Sprintf("%s\n%s", n.Title, n.Content)
 
-		vec, err := h.ai.GetEmbedding(textToEmbed)
+		vec, err := h.svc.AI.GetEmbedding(textToEmbed)
 		if err != nil {
 			zap.L().Error("AI embedding failed", zap.Error(err))
 			return
 		}
 
-		err = h.qdrant.Upsert(context.Background(), n.ID, vec, n.UserID, n.IsPrivate)
+		err = h.svc.Qdrant.Upsert(context.Background(), n.ID, vec, n.UserID, n.IsPrivate)
 		if err != nil {
 			zap.L().Error("Qdrant upsert failed", zap.Error(err))
 		}
@@ -100,9 +100,9 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 				PostTime: note.CreatedAt.Unix(),
 			}
 			body, _ := json.Marshal(msg)
-			if h.rabbit != nil {
+			if h.svc.Rabbit != nil {
 				// 只需要发这一条消息，剩下的交给消费者去扩散
-				_ = h.rabbit.Publish("feed_queue", body)
+				_ = h.svc.Rabbit.Publish("feed_queue", body)
 			}
 		}()
 	}
@@ -110,7 +110,7 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 }
 
 func (h *NoteHandler) sendAITask(noteID uint, taskType string) {
-	if h.rabbit == nil {
+	if h.svc.Rabbit == nil {
 		return
 	}
 	msg := models.AITaskMsg{
@@ -118,7 +118,7 @@ func (h *NoteHandler) sendAITask(noteID uint, taskType string) {
 		Task:   taskType,
 	}
 	body, _ := json.Marshal(msg)
-	_ = h.rabbit.Publish("ai_queue", body)
+	_ = h.svc.Rabbit.Publish("ai_queue", body)
 }
 
 func (h *NoteHandler) generateDefaultTitle(userID uint) (string, error) {
@@ -130,7 +130,7 @@ func (h *NoteHandler) generateDefaultTitle(userID uint) (string, error) {
 	suffix := 1
 
 	for {
-		err := h.db.Model(&models.Note{}).
+		err := h.svc.DB.Model(&models.Note{}).
 			Where("user_id = ? AND title = ?", userID, finalTitle).
 			Count(&count).Error
 

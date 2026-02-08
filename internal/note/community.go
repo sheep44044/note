@@ -25,7 +25,7 @@ func (h *NoteHandler) ListPublicNotes(c *gin.Context) {
 
 	sortBy := c.DefaultQuery("sort", "time") // time / popular
 
-	query := h.db.Where("is_private = ?", false)
+	query := h.svc.DB.Where("is_private = ?", false)
 
 	switch sortBy {
 	case "popular":
@@ -50,7 +50,7 @@ func (h *NoteHandler) ListPublicNotes(c *gin.Context) {
 	}
 
 	var favorites []models.Favorite
-	h.db.Where("user_id = ? AND note_id IN ?", userID, noteIDs).Find(&favorites)
+	h.svc.DB.Where("user_id = ? AND note_id IN ?", userID, noteIDs).Find(&favorites)
 	favSet := make(map[uint]bool)
 	for _, f := range favorites {
 		favSet[f.NoteID] = true

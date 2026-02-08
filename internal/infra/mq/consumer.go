@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"note/internal/ai"
-	"note/internal/cache"
+	"note/internal/infra/ai"
+	"note/internal/infra/cache"
+	"note/internal/infra/vector"
 	"note/internal/models"
-	"note/internal/vector"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"

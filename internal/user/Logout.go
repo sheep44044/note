@@ -23,7 +23,7 @@ func (h *UserHandler) Logout(c *gin.Context) {
 	}
 	tokenString := parts[1]
 
-	expiration := h.cfg.JWTExpirationTime
+	expiration := h.svc.Config.JWTExpirationTime
 
 	err := utils.AddTokenToBlacklist(tokenString, expiration)
 	if err != nil {

@@ -29,7 +29,7 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	}
 
 	var note models.Note
-	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&note).Error; err != nil {
+	if err := h.svc.DB.Where("id = ? AND user_id = ?", id, userID).First(&note).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusNotFound, "note not found")
 		} else {
@@ -38,7 +38,7 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 		return
 	}
 
-	err = h.db.Transaction(func(tx *gorm.DB) error {
+	err = h.svc.DB.Transaction(func(tx *gorm.DB) error {
 		update := make(map[string]interface{})
 		if req.Title != nil {
 			update["title"] = *req.Title
@@ -77,21 +77,21 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	cacheKeyNote := "note:" + id
 	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d*", userID)
 
-	_ = h.cache.Del(c, cacheKeyNote)
-	_ = h.cache.ClearCacheByPattern(c, h.cache, cacheKeyAllNotes)
+	_ = h.svc.Cache.Del(c, cacheKeyNote)
+	_ = h.svc.Cache.ClearCacheByPattern(c, h.svc.Cache, cacheKeyAllNotes)
 
 	zap.L().Info("Cache cleared for updated note", zap.String("note_id", id))
 
 	go func(n models.Note) {
 		textToEmbed := fmt.Sprintf("%s\n%s", n.Title, n.Content)
 
-		vec, err := h.ai.GetEmbedding(textToEmbed)
+		vec, err := h.svc.AI.GetEmbedding(textToEmbed)
 		if err != nil {
 			zap.L().Error("Embedding generation failed", zap.Error(err))
 			return
 		}
 
-		err = h.qdrant.Upsert(context.Background(), n.ID, vec, n.UserID, n.IsPrivate)
+		err = h.svc.Qdrant.Upsert(context.Background(), n.ID, vec, n.UserID, n.IsPrivate)
 		if err != nil {
 			zap.L().Error("Qdrant upsert failed", zap.Error(err))
 		}

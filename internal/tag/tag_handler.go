@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"note/internal/cache"
 	"note/internal/models"
+	"note/internal/svc"
 	"note/internal/utils"
 	"note/internal/validators"
 	"strconv"
@@ -18,12 +18,11 @@ import (
 )
 
 type NoteTag struct {
-	db    *gorm.DB
-	cache *cache.RedisCache
+	svc *svc.ServiceContext
 }
 
-func NewNoteTag(db *gorm.DB, cache *cache.RedisCache) *NoteTag {
-	return &NoteTag{db: db, cache: cache}
+func NewNoteTag(svc *svc.ServiceContext) *NoteTag {
+	return &NoteTag{svc: svc}
 }
 
 func (h *NoteTag) GetTags(c *gin.Context) {
@@ -34,7 +33,7 @@ func (h *NoteTag) GetTags(c *gin.Context) {
 	}
 
 	cacheKey := fmt.Sprintf("tags:user:%d", userID)
-	cachedTags, err := h.cache.Get(c, cacheKey)
+	cachedTags, err := h.svc.Cache.Get(c, cacheKey)
 	if err == nil {
 		var tags []models.Tag
 		if err := json.Unmarshal([]byte(cachedTags), &tags); err == nil {
@@ -45,14 +44,14 @@ func (h *NoteTag) GetTags(c *gin.Context) {
 	}
 
 	var tags []models.Tag
-	if err := h.db.Where("user_id = ?", userID).Find(&tags).Error; err != nil {
+	if err := h.svc.DB.Where("user_id = ?", userID).Find(&tags).Error; err != nil {
 		zap.L().Error("Failed to fetch tags DB", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "获取标签失败")
 		return
 	}
 
 	tagsJSON, _ := json.Marshal(tags)
-	_ = h.cache.SetWithRandomTTL(c, cacheKey, string(tagsJSON), 10*time.Minute)
+	_ = h.svc.Cache.SetWithRandomTTL(c, cacheKey, string(tagsJSON), 10*time.Minute)
 
 	utils.Success(c, tags)
 }
@@ -67,7 +66,7 @@ func (h *NoteTag) GetTag(c *gin.Context) {
 	id := c.Param("id")
 	cacheKey := "tag:" + id
 
-	cachedTag, err := h.cache.Get(c, cacheKey)
+	cachedTag, err := h.svc.Cache.Get(c, cacheKey)
 	if err == nil {
 		var tag models.Tag
 		if err := json.Unmarshal([]byte(cachedTag), &tag); err == nil {
@@ -80,7 +79,7 @@ func (h *NoteTag) GetTag(c *gin.Context) {
 	}
 
 	var tag models.Tag
-	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&tag).Error; err != nil {
+	if err := h.svc.DB.Where("id = ? AND user_id = ?", id, userID).First(&tag).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusNotFound, "tag not found")
 		} else {
@@ -91,7 +90,7 @@ func (h *NoteTag) GetTag(c *gin.Context) {
 	}
 
 	tagJSON, _ := json.Marshal(tag)
-	_ = h.cache.SetWithRandomTTL(c, cacheKey, string(tagJSON), 10*time.Minute)
+	_ = h.svc.Cache.SetWithRandomTTL(c, cacheKey, string(tagJSON), 10*time.Minute)
 
 	utils.Success(c, tag)
 }
@@ -110,7 +109,7 @@ func (h *NoteTag) CreateTag(c *gin.Context) {
 	}
 
 	var count int64
-	h.db.Model(&models.Tag{}).Where("user_id = ? AND name = ?", userID, req.Name).Count(&count)
+	h.svc.DB.Model(&models.Tag{}).Where("user_id = ? AND name = ?", userID, req.Name).Count(&count)
 	if count > 0 {
 		utils.Error(c, http.StatusBadRequest, "Tag name already exists")
 		return
@@ -121,13 +120,13 @@ func (h *NoteTag) CreateTag(c *gin.Context) {
 		Color:  req.Color,
 		UserID: userID,
 	}
-	if err := h.db.Create(&tag).Error; err != nil {
+	if err := h.svc.DB.Create(&tag).Error; err != nil {
 		zap.L().Error("create tag db error", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "创建失败")
 		return
 	}
 
-	_ = h.cache.Del(c, fmt.Sprintf("tags:user:%d", userID))
+	_ = h.svc.Cache.Del(c, fmt.Sprintf("tags:user:%d", userID))
 
 	utils.Success(c, tag)
 }
@@ -147,7 +146,7 @@ func (h *NoteTag) UpdateTag(c *gin.Context) {
 	}
 
 	var tag models.Tag
-	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&tag).Error; err != nil {
+	if err := h.svc.DB.Where("id = ? AND user_id = ?", id, userID).First(&tag).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusNotFound, "tag not found")
 		} else {
@@ -156,7 +155,7 @@ func (h *NoteTag) UpdateTag(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Model(&tag).Updates(models.Tag{
+	if err := h.svc.DB.Model(&tag).Updates(models.Tag{
 		Name:  req.Name,
 		Color: req.Color,
 	}).Error; err != nil {
@@ -164,8 +163,8 @@ func (h *NoteTag) UpdateTag(c *gin.Context) {
 		return
 	}
 
-	_ = h.cache.Del(c, "tag:"+id)
-	_ = h.cache.Del(c, fmt.Sprintf("tags:user:%d", userID))
+	_ = h.svc.Cache.Del(c, "tag:"+id)
+	_ = h.svc.Cache.Del(c, fmt.Sprintf("tags:user:%d", userID))
 
 	zap.L().Info("Cache cleared for updated tag", zap.String("tag_id", id))
 
@@ -185,7 +184,7 @@ func (h *NoteTag) DeleteTag(c *gin.Context) {
 		return
 	}
 
-	result := h.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.Tag{})
+	result := h.svc.DB.Where("id = ? AND user_id = ?", id, userID).Delete(&models.Tag{})
 
 	if result.Error != nil {
 		zap.L().Error("delete tag db error", zap.Error(result.Error))
@@ -198,8 +197,8 @@ func (h *NoteTag) DeleteTag(c *gin.Context) {
 		return
 	}
 
-	_ = h.cache.Del(c, "tag:"+c.Param("id"))
-	_ = h.cache.Del(c, fmt.Sprintf("tags:user:%d", userID))
+	_ = h.svc.Cache.Del(c, "tag:"+c.Param("id"))
+	_ = h.svc.Cache.Del(c, fmt.Sprintf("tags:user:%d", userID))
 
 	zap.L().Info("Tag and related caches cleared", zap.Int("tag_id", id))
 	utils.Success(c, gin.H{"message": "deleted"})

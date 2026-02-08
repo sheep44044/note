@@ -26,7 +26,7 @@ func (h *UserHandler) ModifyPassword(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := h.db.Select("password").First(&user, userID).Error; err != nil {
+	if err := h.svc.DB.Select("password").First(&user, userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusUnauthorized, "user not found")
 		} else {
@@ -48,7 +48,7 @@ func (h *UserHandler) ModifyPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Model(&user).Update("password", string(newHash)).Error; err != nil {
+	if err := h.svc.DB.Model(&user).Update("password", string(newHash)).Error; err != nil {
 		zap.L().Error("update password failed", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "failed to update password")
 		return

@@ -29,7 +29,7 @@ func (h *NoteHandler) GetNotes(c *gin.Context) {
 		cacheKey = fmt.Sprintf("notes:user:%d:tag:%s", userID, tagIDStr)
 	}
 
-	cachedNotes, err := h.cache.Get(c, cacheKey)
+	cachedNotes, err := h.svc.Cache.Get(c, cacheKey)
 	if err == nil {
 		var notes []models.Note
 		if err := json.Unmarshal([]byte(cachedNotes), &notes); err == nil {
@@ -40,7 +40,7 @@ func (h *NoteHandler) GetNotes(c *gin.Context) {
 	}
 
 	var notes []models.Note
-	query := h.db.Model(&models.Note{}).Where("user_id = ?", userID)
+	query := h.svc.DB.Model(&models.Note{}).Where("user_id = ?", userID)
 
 	if tagIDStr != "" {
 		query = query.Joins("JOIN note_tags ON note_tags.note_id = notes.id").
@@ -59,7 +59,7 @@ func (h *NoteHandler) GetNotes(c *gin.Context) {
 	}
 
 	notesJSON, _ := json.Marshal(notes)
-	_ = h.cache.SetWithRandomTTL(c, cacheKey, string(notesJSON), 10*time.Minute)
+	_ = h.svc.Cache.SetWithRandomTTL(c, cacheKey, string(notesJSON), 10*time.Minute)
 
 	utils.Success(c, notes)
 }
@@ -75,7 +75,7 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 	noteID, _ := strconv.ParseUint(id, 10, 64)
 	cacheKey := "note:" + id
 
-	cachedNote, err := h.cache.Get(c, cacheKey)
+	cachedNote, err := h.svc.Cache.Get(c, cacheKey)
 	if err == nil {
 		var note models.Note
 		if err := json.Unmarshal([]byte(cachedNote), &note); err == nil {
@@ -89,7 +89,7 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 	}
 
 	var note models.Note
-	if err := h.db.Preload("Tags").Where("id = ? AND user_id = ?", id, userID).First(&note).Error; err != nil {
+	if err := h.svc.DB.Preload("Tags").Where("id = ? AND user_id = ?", id, userID).First(&note).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusNotFound, "note not found")
 		} else {
@@ -100,7 +100,7 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 	}
 
 	noteJSON, _ := json.Marshal(note)
-	_ = h.cache.SetWithRandomTTL(c, cacheKey, string(noteJSON), 10*time.Minute)
+	_ = h.svc.Cache.SetWithRandomTTL(c, cacheKey, string(noteJSON), 10*time.Minute)
 
 	h.recordNoteView(c, userID, uint(noteID))
 
@@ -124,7 +124,7 @@ func (h *NoteHandler) GetFollowingFeed(c *gin.Context) {
 
 	key := fmt.Sprintf("timeline:user:%d", userID)
 
-	noteIDStrs, err := h.cache.LRange(c, key, start, stop)
+	noteIDStrs, err := h.svc.Cache.LRange(c, key, start, stop)
 
 	if len(noteIDStrs) == 0 {
 		if page > 1 {
@@ -133,7 +133,7 @@ func (h *NoteHandler) GetFollowingFeed(c *gin.Context) {
 		}
 
 		var followedIDs []uint
-		err = h.db.Model(&models.UserFollow{}).
+		err = h.svc.DB.Model(&models.UserFollow{}).
 			Where("follower_id = ?", userID).
 			Pluck("followed_id", &followedIDs).Error
 
@@ -147,7 +147,7 @@ func (h *NoteHandler) GetFollowingFeed(c *gin.Context) {
 		}
 
 		var notes []models.Note
-		h.db.Preload("Tags").
+		h.svc.DB.Preload("Tags").
 			Where("user_id IN ?", followedIDs).
 			Where("is_private = ?", false).
 			Order("created_at DESC").
@@ -160,7 +160,7 @@ func (h *NoteHandler) GetFollowingFeed(c *gin.Context) {
 	}
 
 	var notes []models.Note
-	err = h.db.Preload("Tags").
+	err = h.svc.DB.Preload("Tags").
 		Where("id IN ?", noteIDStrs).
 		Where("is_private = ?", false).
 		Find(&notes).Error

@@ -38,7 +38,7 @@ func (h *UserHandler) PersonalPage(c *gin.Context) {
 	isOwner := viewerID == targetID
 
 	var targetUser models.User
-	err = h.db.Select("id, username, avatar, bio, follow_count, fan_count, created_at").
+	err = h.svc.DB.Select("id, username, avatar, bio, follow_count, fan_count, created_at").
 		Where("id = ?", targetID).
 		First(&targetUser).Error
 
@@ -53,7 +53,7 @@ func (h *UserHandler) PersonalPage(c *gin.Context) {
 	}
 
 	var notes []models.Note
-	query := h.db.Preload("Tags").
+	query := h.svc.DB.Preload("Tags").
 		Select("id, title, summary, is_private, is_pinned, favorite_count, created_at, updated_at").
 		Where("user_id = ?", targetID).
 		Order("is_pinned DESC, updated_at DESC")
@@ -71,7 +71,7 @@ func (h *UserHandler) PersonalPage(c *gin.Context) {
 	isFollowing := false
 	if !isOwner {
 		var count int64
-		h.db.Model(&models.UserFollow{}).
+		h.svc.DB.Model(&models.UserFollow{}).
 			Where("follower_id = ? AND followed_id = ?", viewerID, targetID).
 			Count(&count)
 		isFollowing = count > 0
@@ -144,7 +144,7 @@ func (h *UserHandler) UpdateMyProfile(c *gin.Context) {
 		return
 	}
 
-	result := h.db.Model(&models.User{}).
+	result := h.svc.DB.Model(&models.User{}).
 		Where("id = ?", userID).
 		Updates(updates)
 
@@ -160,7 +160,7 @@ func (h *UserHandler) UpdateMyProfile(c *gin.Context) {
 	}
 
 	var updatedUser models.User
-	h.db.Select("id, username, avatar, bio, created_at, updated_at").
+	h.svc.DB.Select("id, username, avatar, bio, created_at, updated_at").
 		First(&updatedUser, userID)
 
 	response := map[string]interface{}{

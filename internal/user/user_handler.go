@@ -1,18 +1,13 @@
 package user
 
 import (
-	"note/config"
-	"note/internal/cache"
-
-	"gorm.io/gorm"
+	"note/internal/svc"
 )
 
 type UserHandler struct {
-	db    *gorm.DB
-	cache *cache.RedisCache
-	cfg   *config.Config
+	svc *svc.ServiceContext
 }
 
-func NewUserHandler(db *gorm.DB, cfg *config.Config, cache *cache.RedisCache) *UserHandler {
-	return &UserHandler{db: db, cfg: cfg, cache: cache}
+func NewUserHandler(svc *svc.ServiceContext) *UserHandler {
+	return &UserHandler{svc: svc}
 }

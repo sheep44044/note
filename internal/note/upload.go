@@ -46,7 +46,7 @@ func (h *NoteHandler) UploadImage(c *gin.Context) {
 	// 生成类似 "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11.jpg"
 	newFileName := fmt.Sprintf("%s%s", uuid.New().String(), ext)
 
-	url, err := h.storageService.UploadImage(c, newFileName, header.Size, file, contentType)
+	url, err := h.svc.Minio.UploadImage(c, newFileName, header.Size, file, contentType)
 	if err != nil {
 		zap.L().Error("MinIO upload failed", zap.Error(err))
 		utils.Error(c, 500, "图片上传服务繁忙")

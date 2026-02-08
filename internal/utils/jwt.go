@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"note/config"
-	"note/internal/cache"
+	"note/internal/infra/cache"
 	"strings"
 	"time"
 

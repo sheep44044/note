@@ -18,7 +18,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 	}
 
 	var exists models.User
-	if h.db.Where("username = ?", req.Username).First(&exists).RowsAffected > 0 {
+	if h.svc.DB.Where("username = ?", req.Username).First(&exists).RowsAffected > 0 {
 		utils.Error(c, http.StatusConflict, "username already exists")
 		return
 	}
@@ -28,7 +28,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 		Username: req.Username,
 		Password: string(hashed),
 	}
-	h.db.Create(&user)
+	h.svc.DB.Create(&user)
 
 	utils.Success(c, gin.H{"message": "user registered"})
 }

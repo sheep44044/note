@@ -19,7 +19,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	var user models.User
-	if h.db.Where("username = ?", req.Username).First(&user).RowsAffected == 0 {
+	if h.svc.DB.Where("username = ?", req.Username).First(&user).RowsAffected == 0 {
 		utils.Error(c, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -29,7 +29,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(h.cfg, user.ID, user.Username)
+	token, err := utils.GenerateToken(h.svc.Config, user.ID, user.Username)
 	if err != nil {
 		zap.L().Error("failed to generate token", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "failed to generate token")

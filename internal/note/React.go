@@ -45,14 +45,14 @@ func (h *NoteHandler) ReactToNote(c *gin.Context) {
 	}
 
 	body, _ := json.Marshal(msg)
-	if err := h.rabbit.Publish("react_queue", body); err != nil {
+	if err := h.svc.Rabbit.Publish("react_queue", body); err != nil {
 		utils.Error(c, http.StatusInternalServerError, "操作失败")
 		return
 	}
 
 	// 清理缓存（笔记详情缓存）
 	// 注意：这里可能需要清理很频繁，如果是高并发场景，建议只更新 Redis 的 Hash 计数，不删整个 Key
-	_ = h.cache.Del(c, "note:"+noteID)
+	_ = h.svc.Cache.Del(c, "note:"+noteID)
 
 	utils.Success(c, gin.H{"message": "操作已接收"})
 }

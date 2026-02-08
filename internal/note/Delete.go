@@ -24,7 +24,7 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 		return
 	}
 
-	result := h.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.Note{})
+	result := h.svc.DB.Where("id = ? AND user_id = ?", id, userID).Delete(&models.Note{})
 	if result.RowsAffected == 0 {
 		utils.Error(c, http.StatusNotFound, "note not found")
 		return
@@ -33,8 +33,8 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	cacheKeyNote := "note:" + c.Param("id")
 	cacheKeyAllNotes := fmt.Sprintf("notes:user:%d*", userID)
 
-	_ = h.cache.Del(c, cacheKeyNote)
-	_ = h.cache.ClearCacheByPattern(c, h.cache, cacheKeyAllNotes)
+	_ = h.svc.Cache.Del(c, cacheKeyNote)
+	_ = h.svc.Cache.ClearCacheByPattern(c, h.svc.Cache, cacheKeyAllNotes)
 
 	zap.L().Info("Cache cleared for deleted note", zap.Int("note_id", id))
 	utils.Success(c, gin.H{"message": "deleted"})

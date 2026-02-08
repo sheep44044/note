@@ -33,13 +33,13 @@ func (h *UserHandler) FollowUser(c *gin.Context) {
 	}
 
 	var exists int64
-	h.db.Model(&models.User{}).Where("id = ?", targetID).Count(&exists)
+	h.svc.DB.Model(&models.User{}).Where("id = ?", targetID).Count(&exists)
 	if exists == 0 {
 		utils.Error(c, http.StatusNotFound, "用户不存在")
 		return
 	}
 
-	err = h.db.Transaction(func(tx *gorm.DB) error {
+	err = h.svc.DB.Transaction(func(tx *gorm.DB) error {
 		var count int64
 		tx.Model(&models.UserFollow{}).
 			Where("follower_id = ? AND followed_id = ?", me, targetID).
@@ -96,7 +96,7 @@ func (h *UserHandler) UnfollowUser(c *gin.Context) {
 		return
 	}
 
-	err = h.db.Transaction(func(tx *gorm.DB) error {
+	err = h.svc.DB.Transaction(func(tx *gorm.DB) error {
 		result := tx.Where("follower_id = ? AND followed_id = ?", me, targetID).Delete(&models.UserFollow{})
 
 		if result.Error != nil {
@@ -134,7 +134,7 @@ func (h *UserHandler) GetFollowingList(c *gin.Context) {
 	offset := (page - 1) * size
 
 	var users []models.UserBrief
-	err := h.db.Table("users").
+	err := h.svc.DB.Table("users").
 		Select("users.id, users.username, users.avatar, users.bio").
 		Joins("JOIN user_follows ON users.id = user_follows.followed_id").
 		Where("user_follows.follower_id = ?", targetID).
@@ -158,7 +158,7 @@ func (h *UserHandler) GetFollowersList(c *gin.Context) {
 
 	var users []models.UserBrief
 
-	err := h.db.Table("users").
+	err := h.svc.DB.Table("users").
 		Select("users.id, users.username, users.avatar, users.bio").
 		Joins("JOIN user_follows ON users.id = user_follows.follower_id").
 		Where("user_follows.followed_id = ?", targetID).

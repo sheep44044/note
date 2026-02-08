@@ -24,7 +24,7 @@ func (h *NoteHandler) TogglePin(c *gin.Context) {
 	}
 
 	var note models.Note
-	if err := h.db.Select("id, is_pinned, user_id").Where("id = ? AND user_id = ?", id, userID).First(&note).Error; err != nil {
+	if err := h.svc.DB.Select("id, is_pinned, user_id").Where("id = ? AND user_id = ?", id, userID).First(&note).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, http.StatusNotFound, "笔记不存在或无权操作")
 		} else {
@@ -35,14 +35,14 @@ func (h *NoteHandler) TogglePin(c *gin.Context) {
 
 	newValue := !note.IsPinned
 
-	if err := h.db.Model(&note).Update("is_pinned", newValue).Error; err != nil {
+	if err := h.svc.DB.Model(&note).Update("is_pinned", newValue).Error; err != nil {
 		zap.L().Error("Toggle pin failed", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "操作失败")
 		return
 	}
 
-	_ = h.cache.Del(c, "note:"+id)
-	_ = h.cache.Del(c, fmt.Sprintf("notes:user:%d", userID))
+	_ = h.svc.Cache.Del(c, "note:"+id)
+	_ = h.svc.Cache.Del(c, fmt.Sprintf("notes:user:%d", userID))
 
 	message := "已取消置顶"
 	if newValue {
@@ -64,7 +64,7 @@ func (h *NoteHandler) FavoriteNote(c *gin.Context) {
 	}
 
 	var note models.Note
-	if err := h.db.Select("id, is_private, favorite_count").Where("id = ? AND is_private = ?", noteID, false).First(&note).Error; err != nil {
+	if err := h.svc.DB.Select("id, is_private, favorite_count").Where("id = ? AND is_private = ?", noteID, false).First(&note).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "笔记不存在或不可公开访问")
 		return
 	}
@@ -77,14 +77,14 @@ func (h *NoteHandler) FavoriteNote(c *gin.Context) {
 		return
 	}
 
-	if err := h.rabbit.Publish("favorite_queue", body); err != nil {
+	if err := h.svc.Rabbit.Publish("favorite_queue", body); err != nil {
 		zap.L().Error("MQ publish failed", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "收藏失败，请稍后重试")
 		return
 	}
 
-	_ = h.cache.Del(c, "note:"+noteID)
-	_ = h.cache.Del(c, fmt.Sprintf("notes:favorites:%d", userID))
+	_ = h.svc.Cache.Del(c, "note:"+noteID)
+	_ = h.svc.Cache.Del(c, fmt.Sprintf("notes:favorites:%d", userID))
 
 	utils.Success(c, gin.H{"favorite_count": note.FavoriteCount + 1})
 }
@@ -107,14 +107,14 @@ func (h *NoteHandler) UnfavoriteNote(c *gin.Context) {
 		return
 	}
 
-	if err := h.rabbit.Publish("favorite_queue", body); err != nil {
+	if err := h.svc.Rabbit.Publish("favorite_queue", body); err != nil {
 		zap.L().Error("MQ publish failed", zap.Error(err))
 		utils.Error(c, http.StatusInternalServerError, "取消收藏失败，请稍后重试")
 		return
 	}
 
-	_ = h.cache.Del(c, "note:"+noteIDstr)
-	_ = h.cache.Del(c, fmt.Sprintf("notes:favorites:%d", userID))
+	_ = h.svc.Cache.Del(c, "note:"+noteIDstr)
+	_ = h.svc.Cache.Del(c, fmt.Sprintf("notes:favorites:%d", userID))
 
 	utils.Success(c, gin.H{"message": "已取消收藏"})
 }
@@ -130,7 +130,7 @@ func (h *NoteHandler) ListMyFavorites(c *gin.Context) {
 	limit := 20
 
 	var favorites []models.Favorite
-	h.db.Where("user_id = ?", userID).
+	h.svc.DB.Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Limit(limit).
 		Offset((page - 1) * limit).
@@ -147,7 +147,7 @@ func (h *NoteHandler) ListMyFavorites(c *gin.Context) {
 	}
 
 	var notes []models.Note
-	h.db.Preload("Tags").
+	h.svc.DB.Preload("Tags").
 		Where("id IN ?", noteIDs).
 		Where("is_private = ?", false).
 		Find(&notes)

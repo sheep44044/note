@@ -37,9 +37,9 @@ func (h *NoteHandler) SearchNotes(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	keywordQuery := "%" + query + "%"
-	dbQuery := h.db.Model(&models.Note{}).
+	dbQuery := h.svc.DB.Model(&models.Note{}).
 		Where("title LIKE ? OR content LIKE ?", keywordQuery, keywordQuery).
-		Where(h.db.Where("user_id = ?", userID).Or("is_private = ?", false))
+		Where(h.svc.DB.Where("user_id = ?", userID).Or("is_private = ?", false))
 
 	// 先查总数 (用于前端分页)
 	var total int64
@@ -81,7 +81,7 @@ func (h *NoteHandler) SmartSearch(c *gin.Context) {
 		return
 	}
 
-	queryVec, err := h.ai.GetEmbedding(query)
+	queryVec, err := h.svc.AI.GetEmbedding(query)
 	if err != nil {
 		zap.L().Error("AI Embedding failed", zap.Error(err))
 		utils.Error(c, 500, "AI 服务繁忙")
@@ -89,7 +89,7 @@ func (h *NoteHandler) SmartSearch(c *gin.Context) {
 	}
 
 	// 2. 去 Qdrant 搜出最相似的 Top 20 个 Note ID
-	noteIDs, err := h.qdrant.Search(c, queryVec, 20, userID)
+	noteIDs, err := h.svc.Qdrant.Search(c, queryVec, 20, userID)
 	if err != nil {
 		utils.Error(c, 500, "搜索服务繁忙")
 		return
@@ -101,9 +101,9 @@ func (h *NoteHandler) SmartSearch(c *gin.Context) {
 	}
 
 	var notes []models.Note
-	err = h.db.Where("id IN ?", noteIDs).
+	err = h.svc.DB.Where("id IN ?", noteIDs).
 		Where(
-			h.db.Where("user_id = ?", userID).
+			h.svc.DB.Where("user_id = ?", userID).
 				Or("is_private = ?", false),
 		).
 		Find(&notes).Error
