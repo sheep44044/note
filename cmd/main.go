@@ -9,6 +9,7 @@ import (
 	"note/internal/tag"
 	"note/internal/user"
 	"note/internal/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -78,7 +79,8 @@ func main() {
 			notes.PUT("/:id", middleware.NoteOwnerMiddleware(svcCtx.DB), noteHandler.UpdateNote)
 			notes.DELETE("/:id", middleware.NoteOwnerMiddleware(svcCtx.DB), noteHandler.DeleteNote)
 
-			notes.POST("/images", noteHandler.UploadImage)
+			notes.POST("/:id/reaction", middleware.RateLimitMiddleware(svcCtx.Cache, "react", 5, 10*time.Second), noteHandler.ReactToNote)
+			notes.POST("/images", middleware.RateLimitMiddleware(svcCtx.Cache, "upload_img", 3, time.Minute), noteHandler.UploadImage)
 			notes.GET("/search", noteHandler.SearchNotes)
 			notes.GET("/smartsearch", noteHandler.SmartSearch)
 

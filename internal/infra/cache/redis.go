@@ -121,3 +121,22 @@ func (c *RedisCache) ClearCacheByPattern(ctx context.Context, cache *RedisCache,
 	}
 	return nil
 }
+
+func (c *RedisCache) AllowRequest(ctx context.Context, key string, limit int, window time.Duration) (bool, error) {
+	// Lua 脚本：计数 + 首次过期设置
+	// 逻辑：如果 key 不存在，INCR 并 EXPIRE；如果存在，只 INCR
+	const script = `
+        local current = redis.call("INCR", KEYS[1])
+        if tonumber(current) == 1 then
+            redis.call("EXPIRE", KEYS[1], ARGV[1])
+        end
+        return current
+    `
+
+	count, err := c.client.Eval(ctx, script, []string{key}, int(window.Seconds())).Int()
+	if err != nil {
+		return true, err
+	}
+
+	return count <= limit, nil
+}
