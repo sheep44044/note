@@ -27,7 +27,7 @@ init:
 	@if [ ! -f .env ]; then \
 		if [ -f .env.example ]; then \
 			cp .env.example .env; \
-			echo "✅ 已从模板生成 .env 文件，请记得填写 Key！"; \
+			echo "✅ 已从模板生成 .env 文件，请记得填写 火山引擎Key和Model！"; \
 		else \
 			echo "⚠️ 未找到 .env.example 模板，跳过配置生成。"; \
 		fi \
