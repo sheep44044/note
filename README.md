@@ -70,7 +70,7 @@ Gnote 是一个基于 Gin + React 的现代化全栈 AI 笔记/知识库系统�
 - 可观测性：集成 Jaeger 实现全链路追踪 (Tracing)，配合 Zap 进行结构化日志管理
 
 ## 项目结构
-Plaintext
+```text
 .
 ├── cmd/                # 程序入口
 │   └── main.go         # 主程序启动文件
@@ -91,7 +91,7 @@ Plaintext
 ├── Makefile            # 项目自动化管理工具 (init, infra, run...)
 ├── go.mod              # Go 依赖定义文件
 └── .env                # 环境变量配置文件
-
+```
 
 ## 核心功能
 
