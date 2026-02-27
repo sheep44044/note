@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 )
 
@@ -45,6 +46,7 @@ func main() {
 	}
 
 	r := gin.Default()
+	r.Use(otelgin.Middleware("note-service"))
 	r.Use(middleware.LoggerMiddleware())
 
 	// 公开路由：用户注册/登录
