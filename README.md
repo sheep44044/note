@@ -45,19 +45,31 @@ make infra
 
 启动后端服务:
 
-http://localhost:8080
-
 ```Bash
 make backend
 ```
 
 启动前端服务:
 
-http://localhost:5173
-
 ```Bash
 make frontend
 ```
+
+## 端口与访问 
+
+在本地成功启动项目后，你可以通过以下地址访问各个服务面板：
+
+| 服务名称 (Service)    | 访问地址 (URL)                                               | 预设端口 (Port)             | 用途说明 (Purpose)               |
+| :-------------------- | :----------------------------------------------------------- | :-------------------------- | :------------------------------- |
+| **前端 (React)**      | [http://localhost:5173](http://localhost:5173)               | `5173`                      | 用户界面（笔记浏览、编辑、社区） |
+| **后端 (Gin API)**    | http://localhost:8080                                        | `8080`                      | 提供核心业务 RESTful API 支持    |
+| **MinIO (对象存储)**  | [http://localhost:9001](http://localhost:9001)               | `9001`(UI) / `9000`(API)    | 附件与图片存储 Web 控制台        |
+| **Qdrant (向量库)**   | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | `6333`(HTTP) / `6334`(gRPC) | 向量数据可视化控制台             |
+| **RabbitMQ (消息)**   | [http://localhost:15672](http://localhost:15672)             | `15672`(UI) / `5672`(TCP)   | 异步任务（AI 摘要生成）监控面板  |
+| **Jaeger (链路追踪)** | [http://localhost:16686](http://localhost:16686)             | `16686`(UI) / `14268`(API)  | API 请求耗时与全链路追踪可视化   |
+
+---
+
 ## 项目总览
 
 Gnote 是一个基于 Gin + React 的现代化全栈 AI 笔记/知识库系统。它实现了从笔记录入、自动向量化索引、AI 辅助阅读（摘要/标题）到自然语言语义检索的完整闭环，采用容器化部署方案。
