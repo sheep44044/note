@@ -59,14 +59,14 @@ make frontend
 
 在本地成功启动项目后，你可以通过以下地址访问各个服务面板：
 
-| 服务名称 (Service)    | 访问地址 (URL)                                               | 预设端口 (Port)             | 用途说明 (Purpose)               |
-| :-------------------- | :----------------------------------------------------------- | :-------------------------- | :------------------------------- |
-| **前端 (React)**      | [http://localhost:5173](http://localhost:5173)               | `5173`                      | 用户界面（笔记浏览、编辑、社区） |
-| **后端 (Gin API)**    | http://localhost:8080                                        | `8080`                      | 提供核心业务 RESTful API 支持    |
-| **MinIO (对象存储)**  | [http://localhost:9001](http://localhost:9001)               | `9001`(UI) / `9000`(API)    | 附件与图片存储 Web 控制台        |
-| **Qdrant (向量库)**   | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | `6333`(HTTP) / `6334`(gRPC) | 向量数据可视化控制台             |
-| **RabbitMQ (消息)**   | [http://localhost:15672](http://localhost:15672)             | `15672`(UI) / `5672`(TCP)   | 异步任务（AI 摘要生成）监控面板  |
-| **Jaeger (链路追踪)** | [http://localhost:16686](http://localhost:16686)             | `16686`(UI) / `14268`(API)  | API 请求耗时与全链路追踪可视化   |
+| 服务名称         | 访问地址                                                               | 预设端口                        | 用途说明                  |
+|:-------------|:-------------------------------------------------------------------|:----------------------------|:----------------------|
+| **前端**       | [http://localhost:5173](http://localhost:5173)                     | `5173`                      | 用户界面（笔记浏览、编辑、社区）      |
+| **后端**       | http://localhost:8080                                              | `8080`                      | 提供核心业务 RESTful API 支持 |
+| **MinIO**    | [http://localhost:9001](http://localhost:9001)                     | `9001`(UI) / `9000`(API)    | 附件与图片存储 Web 控制台       |
+| **Qdrant**   | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | `6333`(HTTP) / `6334`(gRPC) | 向量数据可视化控制台            |
+| **RabbitMQ** | [http://localhost:15672](http://localhost:15672)                   | `15672`(UI) / `5672`(TCP)   | 异步任务（AI 摘要生成）监控面板     |
+| **Jaeger**   | [http://localhost:16686](http://localhost:16686)                   | `16686`(UI) / `14268`(API)  | API 请求耗时与全链路追踪可视化     |
 
 ---
 
